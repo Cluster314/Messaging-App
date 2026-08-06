@@ -917,9 +917,14 @@ function ownEffectiveStatus(){
   return 'active';
 }
 
+let lastInteractionTime = Date.now();
+['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+  document.addEventListener(evt, () => { lastInteractionTime = Date.now(); }, { passive: true });
+});
+
 async function sendHeartbeat(){
   if(!currentUser) return;
-  try{ await updateDoc(doc(db, 'users', currentUser.uid), { lastActive: Date.now() }); }
+  try{ await updateDoc(doc(db, 'users', currentUser.uid), { lastActive: lastInteractionTime }); }
   catch(e){}
 }
 
