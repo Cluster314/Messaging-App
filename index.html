@@ -577,6 +577,31 @@
     <div class="auth-toggle" id="authToggle">
       No account yet? <a id="toggleLink">Sign up</a>
     </div>
+    <div class="auth-toggle" id="forgotWrap">
+      <a id="forgotLink">Forgot password?</a>
+    </div>
+  </div>
+</div>
+
+<div class="auth-screen" id="completeProfileScreen" style="display:none;">
+  <div class="auth-card">
+    <div class="auth-brand"><span class="dot"></span> WIRE</div>
+    <div class="auth-sub">ONE LAST STEP · FINISH YOUR PROFILE</div>
+    <div class="field-hint" style="margin-bottom:16px;">Your account exists but your profile never finished saving. Set your name and username to continue.</div>
+    <div class="auth-error" id="completeError"></div>
+    <form id="completeForm">
+      <div class="field">
+        <label>Display name</label>
+        <input type="text" id="completeDisplayName" autocomplete="name" maxlength="40">
+      </div>
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="completeUsername" autocomplete="off" maxlength="20">
+        <div class="field-hint">Lowercase letters, numbers, underscores. 3–20 characters.</div>
+      </div>
+      <button type="submit" class="auth-btn" id="completeSubmitBtn">SAVE &amp; CONTINUE</button>
+    </form>
+    <div class="auth-toggle"><a id="completeLogoutLink">Log out and use a different account</a></div>
   </div>
 </div>
 
@@ -608,7 +633,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  onAuthStateChanged, signOut
+  onAuthStateChanged, signOut, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, setDoc, getDoc, deleteDoc, updateDoc, collection, query, orderBy,
@@ -643,6 +668,12 @@ const emailInput = document.getElementById('emailInput');
 const passwordInput = document.getElementById('passwordInput');
 
 const appEl = document.getElementById('app');
+const completeProfileScreen = document.getElementById('completeProfileScreen');
+const completeForm = document.getElementById('completeForm');
+const completeError = document.getElementById('completeError');
+const completeSubmitBtn = document.getElementById('completeSubmitBtn');
+const completeDisplayName = document.getElementById('completeDisplayName');
+const completeUsername = document.getElementById('completeUsername');
 const listsEl = document.getElementById('lists');
 const searchInput = document.getElementById('searchInput');
 const searchResultsEl = document.getElementById('searchResults');
@@ -699,6 +730,7 @@ function wireToggleLink(){
     authSubmitBtn.textContent = mode === 'login' ? 'LOG IN' : 'CREATE ACCOUNT';
     displayNameField.style.display = mode === 'signup' ? 'block' : 'none';
     usernameField.style.display = mode === 'signup' ? 'block' : 'none';
+    document.getElementById('forgotWrap').style.display = mode === 'signup' ? 'none' : 'block';
     authToggle.innerHTML = mode === 'login'
       ? `No account yet? <a id="toggleLink">Sign up</a>`
       : `Already have an account? <a id="toggleLink">Log in</a>`;
@@ -765,6 +797,22 @@ function friendlyError(code){
 }
 
 logoutBtn.addEventListener('click', () => signOut(auth));
+document.getElementById('completeLogoutLink').addEventListener('click', () => signOut(auth));
+
+document.getElementById('forgotLink').addEventListener('click', async () => {
+  const email = emailInput.value.trim();
+  if(!email){
+    showAuthError('Enter your email above first, then click "Forgot password?" again.');
+    return;
+  }
+  authError.style.display = 'none';
+  try{
+    await sendPasswordResetEmail(auth, email);
+    showToast('Check your inbox', 'A password reset link was sent to ' + email + '.');
+  } catch(err){
+    showAuthError(friendlyError(err.code));
+  }
+});
 
 // ---------- Auth state ----------
 onAuthStateChanged(auth, async (user) => {
@@ -773,28 +821,74 @@ onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     let snap = await getDoc(doc(db, 'users', user.uid));
     if(!snap.exists()){
-      // shouldn't normally happen, but fallback
-      await setDoc(doc(db, 'users', user.uid), { email: user.email, displayName: user.email.split('@')[0], username: '', createdAt: Date.now() });
+      // Account exists in Auth but its profile doc never got written.
+      await setDoc(doc(db, 'users', user.uid), { email: user.email, displayName: '', username: '', createdAt: Date.now() });
       snap = await getDoc(doc(db, 'users', user.uid));
     }
     myProfile = snap.data();
     profileCache.set(user.uid, myProfile);
 
-    authScreen.style.display = 'none';
-    appEl.classList.add('visible');
-    userLabel.textContent = myProfile.username ? '@' + myProfile.username : myProfile.email;
+    if(!myProfile.username){
+      authScreen.style.display = 'none';
+      appEl.classList.remove('visible');
+      completeProfileScreen.style.display = 'flex';
+      completeDisplayName.value = myProfile.displayName || '';
+      return;
+    }
 
-    requestNotifyPermission();
-    friendshipsInitial = true;
-    subscribeFriendships();
+    completeProfileScreen.style.display = 'none';
+    enterApp();
   } else {
     currentUser = null;
     myProfile = null;
     appEl.classList.remove('visible');
+    completeProfileScreen.style.display = 'none';
     authScreen.style.display = 'flex';
     authForm.reset();
     listsEl.innerHTML = '';
     mainPanel.innerHTML = `<div class="empty-state"><div class="glyph">✦</div><p>SELECT A LINE TO BEGIN</p></div>`;
+  }
+});
+
+function enterApp(){
+  authScreen.style.display = 'none';
+  completeProfileScreen.style.display = 'none';
+  appEl.classList.add('visible');
+  userLabel.textContent = myProfile.username ? '@' + myProfile.username : myProfile.email;
+
+  requestNotifyPermission();
+  friendshipsInitial = true;
+  subscribeFriendships();
+}
+
+completeForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  completeError.style.display = 'none';
+  completeSubmitBtn.disabled = true;
+  try{
+    const displayName = completeDisplayName.value.trim();
+    const usernameLower = completeUsername.value.trim().toLowerCase();
+    if(!displayName){ throw {code:'custom/no-name'}; }
+    if(!USERNAME_RE.test(usernameLower)){ throw {code:'custom/bad-username'}; }
+    const takenSnap = await getDoc(doc(db, 'usernames', usernameLower));
+    if(takenSnap.exists()){ throw {code:'custom/username-taken'}; }
+
+    await setDoc(doc(db, 'users', currentUser.uid), {
+      email: currentUser.email,
+      displayName: displayName,
+      username: usernameLower,
+      createdAt: myProfile.createdAt || Date.now()
+    });
+    await setDoc(doc(db, 'usernames', usernameLower), { uid: currentUser.uid });
+
+    myProfile = { email: currentUser.email, displayName, username: usernameLower };
+    profileCache.set(currentUser.uid, myProfile);
+    enterApp();
+  } catch(err){
+    completeError.textContent = friendlyError(err.code);
+    completeError.style.display = 'block';
+  } finally {
+    completeSubmitBtn.disabled = false;
   }
 });
 
