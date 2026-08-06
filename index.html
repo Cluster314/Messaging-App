@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIRE — Messages</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231c2731'/%3E%3Cstop offset='100%25' stop-color='%23141c24'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='200' height='200' rx='42' fill='url(%23bg)'/%3E%3Cg fill='%23c79a44' opacity='0.35'%3E%3Ccircle cx='24' cy='24' r='3'/%3E%3Ccircle cx='24' cy='176' r='3'/%3E%3Ccircle cx='176' cy='24' r='3'/%3E%3Ccircle cx='176' cy='176' r='3'/%3E%3C/g%3E%3Cpath d='M42 128 L74 128 L86 96 L100 152 L114 72 L128 128 L158 128' fill='none' stroke='%23c79a44' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='150' cy='58' r='9' fill='%23c79a44'/%3E%3Ccircle cx='150' cy='58' r='16' fill='none' stroke='%23c79a44' stroke-width='2.5' opacity='0.5'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --ink:#141c24;
+    --ink-2:#1c2731;
+    --paper:#efe8d8;
+    --paper-2:#e4dcc7;
+    --brass:#c79a44;
+    --brass-dim:#a17f3a;
+    --rust:#a8492e;
+    --line: rgba(239,232,216,0.12);
+    --line-dark: rgba(20,28,36,0.12);
+    --font-display: 'Courier New', ui-monospace, monospace;
+    --font-body: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background: var(--ink);
+    font-family: var(--font-body);
+    color: var(--paper);
+    -webkit-font-smoothing: antialiased;
+    overflow:hidden;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration: 0.001ms !important; transition-duration: 0.001ms !important;}
+  }
+
+  /* ---------- Auth screen ---------- */
+  .auth-screen{
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: var(--ink);
+    background-image: radial-gradient(circle at 1px 1px, rgba(239,232,216,0.05) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+  .auth-card{
+    width: 340px;
+    max-width: 90vw;
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 30px 28px;
+  }
+  .auth-brand{
+    font-family: var(--font-display);
+    letter-spacing: 4px;
+    font-size: 15px;
+    color: var(--brass);
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom: 4px;
+  }
+  .auth-brand .dot{
+    width:6px; height:6px; border-radius:50%;
+    background: var(--brass);
+    box-shadow: 0 0 8px var(--brass);
+  }
+  .auth-sub{
+    font-family: var(--font-display);
+    font-size:10px;
+    letter-spacing: 2px;
+    color: rgba(239,232,216,0.35);
+    margin-bottom: 24px;
+  }
+  .field{ margin-bottom: 14px; }
+  .field label{
+    display:block;
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: rgba(239,232,216,0.5);
+    margin-bottom: 6px;
+  }
+  .field input{
+    width:100%;
+    background: var(--ink);
+    border: 1px solid var(--line);
+    color: var(--paper);
+    padding: 10px 12px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    border-radius: 3px;
+    outline: none;
+  }
+  .field input:focus{ border-color: var(--brass); }
+  .auth-btn{
+    width:100%;
+    background: var(--brass);
+    color: var(--ink);
+    border:none;
+    font-family: var(--font-display);
+    letter-spacing: 1.5px;
+    font-size: 11px;
+    font-weight:bold;
+    padding: 12px 18px;
+    border-radius: 4px;
+    cursor:pointer;
+    margin-top: 6px;
+  }
+  .auth-btn:hover{ background: #d6ab54; }
+  .auth-btn:disabled{ opacity:0.5; cursor:default; }
+  .auth-toggle{
+    margin-top: 16px;
+    text-align:center;
+    font-size: 12.5px;
+    color: rgba(239,232,216,0.5);
+  }
+  .auth-toggle a{ color: var(--brass); text-decoration:none; cursor:pointer; }
+  .auth-error{
+    background: rgba(168,73,46,0.15);
+    border: 1px solid var(--rust);
+    color: #e8a892;
+    font-size: 12.5px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 14px;
+    display:none;
+  }
+
+  /* ---------- App shell ---------- */
+  .app{
+    display:none;
+    grid-template-columns: 300px 1fr;
+    height:100vh;
+    max-width: 1200px;
+    margin: 0 auto;
+    background: var(--ink);
+    box-shadow: 0 0 60px rgba(0,0,0,0.5);
+  }
+  .app.visible{ display:grid; }
+
+  .sidebar{
+    background: var(--ink);
+    border-right: 1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+  .sidebar-head{
+    padding: 20px 20px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand{
+    font-family: var(--font-display);
+    letter-spacing: 4px;
+    font-size: 13px;
+    color: var(--brass);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .brand-left{ display:flex; align-items:center; gap:8px; }
+  .brand .dot{
+    width:6px; height:6px; border-radius:50%;
+    background: var(--brass);
+    box-shadow: 0 0 8px var(--brass);
+  }
+  .logout-btn{
+    background:none;
+    border: 1px solid var(--line);
+    color: rgba(239,232,216,0.5);
+    font-family: var(--font-display);
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor:pointer;
+  }
+  .logout-btn:hover{ border-color: var(--brass); color: var(--brass); }
+  .brand-sub{
+    font-family: var(--font-display);
+    font-size:10px;
+    letter-spacing: 1px;
+    color: rgba(239,232,216,0.35);
+    margin-top: 8px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .search-wrap{ padding: 14px 16px; }
+  .search-wrap input{
+    width:100%;
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    color: var(--paper);
+    padding: 9px 12px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    border-radius: 3px;
+    outline: none;
+  }
+  .search-wrap input::placeholder{ color: rgba(239,232,216,0.35); }
+  .search-wrap input:focus{ border-color: var(--brass); }
+
+  .contacts{ flex:1; overflow-y: auto; }
+  .contacts::-webkit-scrollbar{ width:6px; }
+  .contacts::-webkit-scrollbar-thumb{ background: var(--ink-2); border-radius:3px; }
+
+  .contact{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor:pointer;
+    border-left: 3px solid transparent;
+  }
+  .contact:hover{ background: var(--ink-2); }
+  .contact.active{ background: var(--ink-2); border-left-color: var(--brass); }
+  .avatar{
+    width: 38px; height:38px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family: var(--font-display);
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--brass);
+    flex-shrink:0;
+  }
+  .contact-info{ flex:1; min-width:0; }
+  .contact-name{ font-size: 14.5px; color: var(--paper); }
+  .contact-preview{
+    font-size: 12.5px;
+    color: rgba(239,232,216,0.45);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    margin-top: 2px;
+  }
+  .empty-contacts{
+    padding: 30px 20px;
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: rgba(239,232,216,0.35);
+    line-height:1.8;
+  }
+
+  .main{
+    display:flex;
+    flex-direction:column;
+    background: var(--paper);
+    color: var(--ink);
+    min-width:0;
+  }
+  .chat-head{
+    padding: 16px 26px;
+    border-bottom: 1px solid var(--line-dark);
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background: var(--paper);
+  }
+  .back-btn{
+    display:none;
+    background:none; border:none; cursor:pointer;
+    font-family: var(--font-display);
+    color: var(--ink);
+    font-size: 18px;
+    padding: 4px 8px 4px 0;
+  }
+  .chat-head .avatar{ width:34px; height:34px; font-size:12px; }
+  .chat-head-info .name{ font-size: 15.5px; font-weight:bold; }
+  .chat-head-info .status{
+    font-family: var(--font-display);
+    font-size: 10.5px;
+    letter-spacing:1px;
+    color: var(--brass-dim);
+    margin-top:2px;
+  }
+
+  .messages{
+    flex:1;
+    overflow-y:auto;
+    padding: 26px 30px;
+    display:flex;
+    flex-direction:column;
+    gap: 4px;
+    background-image: radial-gradient(circle at 1px 1px, rgba(20,28,36,0.05) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+  .messages::-webkit-scrollbar{ width:8px; }
+  .messages::-webkit-scrollbar-thumb{ background: var(--paper-2); border-radius:4px; }
+
+  .day-divider{
+    text-align:center;
+    font-family: var(--font-display);
+    font-size: 10.5px;
+    letter-spacing: 2px;
+    color: var(--brass-dim);
+    margin: 18px 0 12px;
+  }
+
+  .msg-row{ display:flex; margin: 6px 0; animation: rise 0.28s ease both; }
+  @keyframes rise{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform: translateY(0); } }
+  .msg-row.out{ justify-content:flex-end; }
+  .msg-row.in{ justify-content:flex-start; }
+
+  .bubble{
+    max-width: 62%;
+    padding: 10px 14px;
+    font-size: 14.5px;
+    line-height: 1.45;
+    position:relative;
+    word-wrap: break-word;
+  }
+  .msg-row.in .bubble{
+    background: #fff;
+    border: 1px solid var(--line-dark);
+    border-radius: 2px 10px 10px 10px;
+    color: var(--ink);
+  }
+  .msg-row.out .bubble{
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 10px 2px 10px 10px;
+  }
+  .msg-time{
+    font-family: var(--font-display);
+    font-size: 9.5px;
+    opacity: 0.5;
+    margin-top: 4px;
+    display:block;
+  }
+
+  .composer{
+    border-top: 1px solid var(--line-dark);
+    padding: 14px 22px;
+    display:flex;
+    gap: 10px;
+    align-items:flex-end;
+    background: var(--paper);
+  }
+  .composer textarea{
+    flex:1;
+    resize:none;
+    border: 1px solid var(--line-dark);
+    background: #fff;
+    padding: 10px 14px;
+    font-family: var(--font-body);
+    font-size: 14.5px;
+    border-radius: 4px;
+    max-height: 120px;
+    outline:none;
+    color: var(--ink);
+  }
+  .composer textarea:focus{ border-color: var(--brass); }
+  .send-btn{
+    background: var(--ink);
+    color: var(--brass);
+    border:none;
+    font-family: var(--font-display);
+    letter-spacing: 1.5px;
+    font-size: 11px;
+    padding: 12px 18px;
+    border-radius: 4px;
+    cursor:pointer;
+  }
+  .send-btn:hover{ background: var(--ink-2); }
+  .send-btn:disabled{ opacity:0.4; cursor:default; }
+
+  .empty-state{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:10px;
+    color: var(--brass-dim);
+    text-align:center;
+    padding: 20px;
+  }
+  .empty-state .glyph{ font-family: var(--font-display); font-size: 34px; letter-spacing: 6px; }
+  .empty-state p{ font-family: var(--font-display); font-size: 11px; letter-spacing: 2px; }
+
+  @media (max-width: 760px){
+    .app{ grid-template-columns: 1fr; max-width:none; }
+    .sidebar{ position: fixed; inset: 0; z-index: 5; transition: transform .25s ease; width:100%; }
+    .app.chat-open .sidebar{ transform: translateX(-100%); }
+    .back-btn{ display:inline-block; }
+  }
+</style>
+</head>
+<body>
+
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <div class="auth-brand"><span class="dot"></span> WIRE</div>
+    <div class="auth-sub">SECURE LINE · SIGN IN TO CONTINUE</div>
+    <div class="auth-error" id="authError"></div>
+    <form id="authForm">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="emailInput" required autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="passwordInput" required autocomplete="current-password" minlength="6">
+      </div>
+      <button type="submit" class="auth-btn" id="authSubmitBtn">LOG IN</button>
+    </form>
+    <div class="auth-toggle" id="authToggle">
+      No account yet? <a id="toggleLink">Sign up</a>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="brand">
+        <div class="brand-left"><span class="dot"></span> WIRE</div>
+        <button class="logout-btn" id="logoutBtn">LOG OUT</button>
+      </div>
+      <div class="brand-sub" id="userEmailLabel"></div>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="Search people…" autocomplete="off">
+    </div>
+    <div class="contacts" id="contactList"></div>
+  </aside>
+
+  <main class="main" id="mainPanel">
+    <div class="empty-state">
+      <div class="glyph">✦</div>
+      <p>SELECT A LINE TO BEGIN</p>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, doc, setDoc, getDoc, collection, query, orderBy,
+  onSnapshot, addDoc, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDW0lOGAJKnUIWwyn_4KjT0IOUBMT0Ma9Q",
+  authDomain: "chat-app-2c45f.firebaseapp.com",
+  projectId: "chat-app-2c45f",
+  storageBucket: "chat-app-2c45f.firebasestorage.app",
+  messagingSenderId: "422879785340",
+  appId: "1:422879785340:web:22cf86b0b2b6fb79ea34f9"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+// ---------- DOM refs ----------
+const authScreen = document.getElementById('authScreen');
+const authForm = document.getElementById('authForm');
+const authError = document.getElementById('authError');
+const authSubmitBtn = document.getElementById('authSubmitBtn');
+const toggleLink = document.getElementById('toggleLink');
+const authToggle = document.getElementById('authToggle');
+const emailInput = document.getElementById('emailInput');
+const passwordInput = document.getElementById('passwordInput');
+
+const appEl = document.getElementById('app');
+const contactList = document.getElementById('contactList');
+const searchInput = document.getElementById('searchInput');
+const mainPanel = document.getElementById('mainPanel');
+const userEmailLabel = document.getElementById('userEmailLabel');
+const logoutBtn = document.getElementById('logoutBtn');
+
+let mode = 'login'; // or 'signup'
+let currentUser = null;
+let allUsers = [];
+let activeChatId = null;
+let activePeer = null;
+let unsubMessages = null;
+
+// ---------- Auth screen behavior ----------
+function wireToggleLink(){
+  document.getElementById('toggleLink').addEventListener('click', () => {
+    mode = mode === 'login' ? 'signup' : 'login';
+    authSubmitBtn.textContent = mode === 'login' ? 'LOG IN' : 'CREATE ACCOUNT';
+    authToggle.innerHTML = mode === 'login'
+      ? `No account yet? <a id="toggleLink">Sign up</a>`
+      : `Already have an account? <a id="toggleLink">Log in</a>`;
+    wireToggleLink();
+    authError.style.display = 'none';
+  });
+}
+wireToggleLink();
+
+function showAuthError(msg){
+  authError.textContent = msg;
+  authError.style.display = 'block';
+}
+
+authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  authError.style.display = 'none';
+  authSubmitBtn.disabled = true;
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+  try{
+    if(mode === 'login'){
+      await signInWithEmailAndPassword(auth, email, password);
+    } else {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        email: email,
+        createdAt: Date.now()
+      });
+    }
+  } catch(err){
+    showAuthError(friendlyError(err.code));
+  } finally {
+    authSubmitBtn.disabled = false;
+  }
+});
+
+function friendlyError(code){
+  const map = {
+    'auth/email-already-in-use': 'That email already has an account. Try logging in instead.',
+    'auth/invalid-email': 'That email address looks invalid.',
+    'auth/weak-password': 'Password should be at least 6 characters.',
+    'auth/user-not-found': 'No account found with that email.',
+    'auth/wrong-password': 'Incorrect password.',
+    'auth/invalid-credential': 'Incorrect email or password.',
+    'auth/too-many-requests': 'Too many attempts. Try again in a moment.'
+  };
+  return map[code] || 'Something went wrong. Please try again.';
+}
+
+logoutBtn.addEventListener('click', () => signOut(auth));
+
+// ---------- Auth state ----------
+onAuthStateChanged(auth, async (user) => {
+  if(user){
+    currentUser = user;
+    let snap = await getDoc(doc(db, 'users', user.uid));
+    if(!snap.exists()){
+      await setDoc(doc(db, 'users', user.uid), { email: user.email, createdAt: Date.now() });
+    }
+    authScreen.style.display = 'none';
+    appEl.classList.add('visible');
+    userEmailLabel.textContent = user.email;
+    loadUsers();
+  } else {
+    currentUser = null;
+    if(unsubMessages) unsubMessages();
+    appEl.classList.remove('visible');
+    authScreen.style.display = 'flex';
+    authForm.reset();
+  }
+});
+
+// ---------- Load other users ----------
+async function loadUsers(){
+  const snap = await getDocs(collection(db, 'users'));
+  allUsers = [];
+  snap.forEach(d => {
+    if(d.id !== currentUser.uid){
+      allUsers.push({ uid: d.id, email: d.data().email });
+    }
+  });
+  renderContacts('');
+}
+
+function initialsFor(email){
+  return (email || '?').slice(0, 2).toUpperCase();
+}
+
+function chatIdFor(uidA, uidB){
+  return [uidA, uidB].sort().join('_');
+}
+
+function renderContacts(filter){
+  filter = (filter || '').toLowerCase();
+  contactList.innerHTML = '';
+  const filtered = allUsers.filter(u => u.email.toLowerCase().includes(filter));
+  if(filtered.length === 0){
+    contactList.innerHTML = `<div class="empty-contacts">NO ONE HERE YET.<br>INVITE SOMEONE TO CREATE<br>AN ACCOUNT AND START A LINE.</div>`;
+    return;
+  }
+  filtered.forEach(u => {
+    const el = document.createElement('div');
+    el.className = 'contact' + (activePeer && activePeer.uid === u.uid ? ' active' : '');
+    el.innerHTML = `
+      <div class="avatar">${initialsFor(u.email)}</div>
+      <div class="contact-info">
+        <div class="contact-name">${escapeHtml(u.email)}</div>
+        <div class="contact-preview">Tap to open line</div>
+      </div>
+    `;
+    el.addEventListener('click', () => openChat(u));
+    contactList.appendChild(el);
+  });
+}
+
+searchInput.addEventListener('input', e => renderContacts(e.target.value));
+
+function escapeHtml(s){
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+function fmtTime(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'});
+}
+function fmtDayLabel(ts){
+  const d = new Date(ts);
+  const today = new Date();
+  const diffDays = Math.floor((new Date(today.getFullYear(),today.getMonth(),today.getDate()) - new Date(d.getFullYear(),d.getMonth(),d.getDate())) / 86400000);
+  if(diffDays === 0) return 'TODAY';
+  if(diffDays === 1) return 'YESTERDAY';
+  return d.toLocaleDateString([], {month:'short', day:'numeric'});
+}
+
+function openChat(peer){
+  activePeer = peer;
+  activeChatId = chatIdFor(currentUser.uid, peer.uid);
+  renderContacts(searchInput.value);
+  renderChatShell(peer);
+  appEl.classList.add('chat-open');
+
+  if(unsubMessages) unsubMessages();
+  const msgsRef = collection(db, 'chats', activeChatId, 'messages');
+  const q = query(msgsRef, orderBy('t', 'asc'));
+  unsubMessages = onSnapshot(q, (snapshot) => {
+    const msgs = [];
+    snapshot.forEach(d => msgs.push(d.data()));
+    renderMessages(msgs);
+  });
+}
+
+function renderChatShell(peer){
+  mainPanel.innerHTML = `
+    <div class="chat-head">
+      <button class="back-btn" id="backBtn" aria-label="Back to contacts">←</button>
+      <div class="avatar">${initialsFor(peer.email)}</div>
+      <div class="chat-head-info">
+        <div class="name">${escapeHtml(peer.email)}</div>
+        <div class="status">LIVE LINE</div>
+      </div>
+    </div>
+    <div class="messages" id="messagesEl"></div>
+    <div class="composer">
+      <textarea id="composerInput" placeholder="Write a message…" rows="1"></textarea>
+      <button class="send-btn" id="sendBtn" disabled>SEND</button>
+    </div>
+  `;
+  document.getElementById('backBtn').addEventListener('click', () => appEl.classList.remove('chat-open'));
+
+  const input = document.getElementById('composerInput');
+  const sendBtn = document.getElementById('sendBtn');
+
+  input.addEventListener('input', () => {
+    sendBtn.disabled = input.value.trim().length === 0;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  });
+  input.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      trySend();
+    }
+  });
+  sendBtn.addEventListener('click', trySend);
+
+  async function trySend(){
+    const text = input.value.trim();
+    if(!text || !activeChatId) return;
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
+    try{
+      await addDoc(collection(db, 'chats', activeChatId, 'messages'), {
+        from: currentUser.uid,
+        text: text,
+        t: Date.now()
+      });
+    } catch(err){
+      alert('Message failed to send: ' + err.message);
+    }
+  }
+}
+
+function renderMessages(msgs){
+  const wrap = document.getElementById('messagesEl');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  let lastDay = null;
+  msgs.forEach(m => {
+    const dayLabel = fmtDayLabel(m.t);
+    if(dayLabel !== lastDay){
+      const div = document.createElement('div');
+      div.className = 'day-divider';
+      div.textContent = dayLabel;
+      wrap.appendChild(div);
+      lastDay = dayLabel;
+    }
+    const mine = m.from === currentUser.uid;
+    const row = document.createElement('div');
+    row.className = 'msg-row ' + (mine ? 'out' : 'in');
+    row.innerHTML = `
+      <div class="bubble">
+        ${escapeHtml(m.text)}
+        <span class="msg-time">${fmtTime(m.t)}</span>
+      </div>
+    `;
+    wrap.appendChild(row);
+  });
+  wrap.scrollTop = wrap.scrollHeight;
+}
+</script>
+
+</body>
+</html>

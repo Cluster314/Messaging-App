@@ -1,0 +1,27 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c2731"/>
+      <stop offset="100%" stop-color="#141c24"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="200" height="200" rx="42" fill="url(#bg)"/>
+
+  <!-- perforated border accents, telegram-tape motif -->
+  <g fill="#c79a44" opacity="0.35">
+    <circle cx="24" cy="24" r="3"/>
+    <circle cx="24" cy="176" r="3"/>
+    <circle cx="176" cy="24" r="3"/>
+    <circle cx="176" cy="176" r="3"/>
+  </g>
+
+  <!-- signal wire path -->
+  <path d="M42 128 L74 128 L86 96 L100 152 L114 72 L128 128 L158 128"
+        fill="none" stroke="#c79a44" stroke-width="7"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- pulse dot -->
+  <circle cx="150" cy="58" r="9" fill="#c79a44"/>
+  <circle cx="150" cy="58" r="16" fill="none" stroke="#c79a44" stroke-width="2.5" opacity="0.5"/>
+</svg>
