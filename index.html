@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WIRE — Messages</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231c2731'/%3E%3Cstop offset='100%25' stop-color='%23141c24'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='200' height='200' rx='42' fill='url(%23bg)'/%3E%3Cg fill='%23c79a44' opacity='0.35'%3E%3Ccircle cx='24' cy='24' r='3'/%3E%3Ccircle cx='24' cy='176' r='3'/%3E%3Ccircle cx='176' cy='24' r='3'/%3E%3Ccircle cx='176' cy='176' r='3'/%3E%3C/g%3E%3Cpath d='M42 128 L74 128 L86 96 L100 152 L114 72 L128 128 L158 128' fill='none' stroke='%23c79a44' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='150' cy='58' r='9' fill='%23c79a44'/%3E%3Ccircle cx='150' cy='58' r='16' fill='none' stroke='%23c79a44' stroke-width='2.5' opacity='0.5'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231c2731'/%3E%3Cstop offset='100%25' stop-color='%23141c24'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='200' height='200' rx='42' fill='url(%23bg)'/%3E%3Cg fill='%2340BFFF' opacity='0.35'%3E%3Ccircle cx='24' cy='24' r='3'/%3E%3Ccircle cx='24' cy='176' r='3'/%3E%3Ccircle cx='176' cy='24' r='3'/%3E%3Ccircle cx='176' cy='176' r='3'/%3E%3C/g%3E%3Cpath d='M42 128 L74 128 L86 96 L100 152 L114 72 L128 128 L158 128' fill='none' stroke='%2340BFFF' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='150' cy='58' r='9' fill='%2340BFFF'/%3E%3Ccircle cx='150' cy='58' r='16' fill='none' stroke='%2340BFFF' stroke-width='2.5' opacity='0.5'/%3E%3C/svg%3E">
 <style>
   :root{
     --ink:#141c24;
@@ -12,8 +12,8 @@
     --ink-3:#243140;
     --paper:#efe8d8;
     --paper-2:#e4dcc7;
-    --brass:#c79a44;
-    --brass-dim:#a17f3a;
+    --brass:#40BFFF;
+    --brass-dim:#2E96CC;
     --rust:#a8492e;
     --green:#5c8a5c;
     --line: rgba(239,232,216,0.12);
@@ -626,6 +626,35 @@
     border-radius: 12px;
     display:inline-block;
   }
+  .modal-bio{
+    font-size: 13.5px;
+    color: rgba(239,232,216,0.75);
+    line-height:1.5;
+    margin-top: 14px;
+    font-style: italic;
+  }
+  .modal-textarea{
+    width:100%;
+    background: var(--ink);
+    border: 1px solid var(--line);
+    color: var(--paper);
+    padding: 9px 12px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    border-radius: 3px;
+    outline:none;
+    margin-bottom: 8px;
+    resize: none;
+    min-height: 60px;
+  }
+  .modal-textarea:focus{ border-color: var(--brass); }
+  .modal-char-count{
+    font-family: var(--font-display);
+    font-size: 9px;
+    color: rgba(239,232,216,0.3);
+    text-align:right;
+    margin: -4px 0 8px;
+  }
   .modal-section{ margin-top: 22px; text-align:left; }
   .modal-section-label{
     font-family: var(--font-display);
@@ -862,7 +891,7 @@ const ACTIVE_MS = 60 * 1000;       // heartbeat within this = "active"
 const IDLE_MS = 5 * 60 * 1000;     // heartbeat within this (but past ACTIVE) = "idle"; beyond = "offline"
 const STATUS_META = {
   active:    { label: 'Active',         color: '#5c8a5c' },
-  idle:      { label: 'Idle',           color: '#c79a44' },
+  idle:      { label: 'Idle',           color: '#d6a13c' },
   dnd:       { label: 'Do Not Disturb', color: '#a8492e' },
   offline:   { label: 'Offline',        color: '#5a6570' },
   invisible: { label: 'Invisible (only you see this)', color: '#5a6570' }
@@ -1199,10 +1228,17 @@ function renderProfileModal(){
     <div class="modal-name">${escapeHtml(p.displayName || '')}</div>
     <div class="modal-username">@${escapeHtml(p.username || '')}</div>
     <div class="modal-status-label" style="background:${meta.color}22; color:${meta.color}; border:1px solid ${meta.color}55;">${meta.label.toUpperCase()}</div>
+    ${p.bio ? `<div class="modal-bio">"${escapeHtml(p.bio)}"</div>` : ''}
   `;
 
   if(isSelf){
     html += `
+      <div class="modal-section">
+        <div class="modal-section-label">BIO</div>
+        <textarea class="modal-textarea" id="modalBioInput" maxlength="160" placeholder="Say something about yourself…">${escapeHtml(p.bio || '')}</textarea>
+        <div class="modal-char-count" id="modalBioCount">${(p.bio || '').length}/160</div>
+        <button class="modal-btn" id="modalSaveBioBtn">SAVE BIO</button>
+      </div>
       <div class="modal-section">
         <div class="modal-section-label">DISPLAY NAME</div>
         <input class="modal-input" id="modalNameInput" value="${escapeHtml(p.displayName || '')}" maxlength="40">
@@ -1229,6 +1265,21 @@ function renderProfileModal(){
   if(isSelf){
     document.getElementById('modalChangePhotoBtn').addEventListener('click', () => {
       document.getElementById('avatarFileInput').click();
+    });
+    document.getElementById('modalBioInput').addEventListener('input', (e) => {
+      document.getElementById('modalBioCount').textContent = e.target.value.length + '/160';
+    });
+    document.getElementById('modalSaveBioBtn').addEventListener('click', async () => {
+      const bio = document.getElementById('modalBioInput').value.trim();
+      try{
+        await updateDoc(doc(db, 'users', currentUser.uid), { bio: bio });
+        myProfile.bio = bio;
+        profileCache.set(currentUser.uid, myProfile);
+        renderProfileModal();
+        showToast('Bio updated', 'Your bio has been saved.');
+      } catch(err){
+        showToast('Update failed', 'Could not update your bio.');
+      }
     });
     document.getElementById('modalSaveNameBtn').addEventListener('click', async () => {
       const name = document.getElementById('modalNameInput').value.trim();
@@ -1339,7 +1390,7 @@ function escapeHtml(s){
 function initialsFor(name){
   return (name || '?').slice(0, 2).toUpperCase();
 }
-const DEFAULT_AVATAR_SVG = `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><path d="M4 24 L13 24 L16.5 17 L20 28 L23.5 12 L27 24 L36 24" fill="none" stroke="#c79a44" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="30" cy="9" r="2.4" fill="#c79a44"/></svg>`;
+const DEFAULT_AVATAR_SVG = `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><path d="M4 24 L13 24 L16.5 17 L20 28 L23.5 12 L27 24 L36 24" fill="none" stroke="#40BFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="30" cy="9" r="2.4" fill="#40BFFF"/></svg>`;
 function avatarHtml(profile, extraClass){
   extraClass = extraClass || '';
   if(profile && profile.photoURL){
