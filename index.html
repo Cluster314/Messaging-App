@@ -344,8 +344,33 @@
     font-size: 13px;
     color: var(--ink);
     background: var(--brass);
+    background-size: cover;
+    background-position: center;
     flex-shrink:0;
+    overflow:hidden;
   }
+  .avatar-default{ background-color: var(--ink-3); padding:8px; }
+  .avatar-default svg{ width:100%; height:100%; }
+  .own-avatar-wrap{
+    position: relative;
+    width: 40px; height:40px;
+    flex-shrink:0;
+    cursor:pointer;
+  }
+  .own-avatar-wrap .avatar{ width:40px; height:40px; }
+  .own-avatar-wrap::after{
+    content:"✎";
+    position:absolute;
+    bottom:-2px; right:-2px;
+    width:16px; height:16px;
+    background: var(--brass);
+    color: var(--ink);
+    border-radius:50%;
+    font-size: 9px;
+    display:flex; align-items:center; justify-content:center;
+    border: 2px solid var(--ink);
+  }
+  .own-avatar-wrap:hover .avatar{ filter: brightness(0.85); }
   .contact-info{ flex:1; min-width:0; }
   .contact-name{ font-size: 14.5px; color: var(--paper); display:flex; align-items:center; gap:6px; }
   .contact-name .uname{ font-family: var(--font-display); font-size: 9.5px; color: rgba(239,232,216,0.35); }
@@ -615,7 +640,11 @@
         <div class="brand-left"><span class="dot"></span> WIRE</div>
         <button class="logout-btn" id="logoutBtn">LOG OUT</button>
       </div>
-      <div class="brand-sub" id="userLabel"></div>
+      <div class="brand-sub" style="display:flex; align-items:center; gap:10px; margin-top:12px;">
+        <div class="own-avatar-wrap" id="ownAvatarWrap" title="Change your photo"></div>
+        <span id="userLabel"></span>
+      </div>
+      <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
     </div>
     <div class="search-wrap">
       <input type="text" id="searchInput" placeholder="Find people by @username…" autocomplete="off">
@@ -858,11 +887,70 @@ function enterApp(){
   completeProfileScreen.style.display = 'none';
   appEl.classList.add('visible');
   userLabel.textContent = myProfile.username ? '@' + myProfile.username : myProfile.email;
+  renderOwnAvatar();
 
   requestNotifyPermission();
   friendshipsInitial = true;
   subscribeFriendships();
 }
+
+function renderOwnAvatar(){
+  const wrap = document.getElementById('ownAvatarWrap');
+  if(wrap) wrap.innerHTML = avatarHtml(myProfile);
+}
+
+document.getElementById('ownAvatarWrap').addEventListener('click', () => {
+  document.getElementById('avatarFileInput').click();
+});
+
+function compressImageToDataURL(file, maxDim, quality){
+  maxDim = maxDim || 160;
+  quality = quality || 0.82;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not read image'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('avatarFileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  if(!file.type.startsWith('image/')){
+    showToast('Not an image', 'Please choose an image file.');
+    return;
+  }
+  try{
+    const dataUrl = await compressImageToDataURL(file, 160, 0.82);
+    if(dataUrl.length > 900000){
+      showToast('Image too large', 'Try a smaller or simpler image.');
+      return;
+    }
+    await updateDoc(doc(db, 'users', currentUser.uid), { photoURL: dataUrl });
+    myProfile.photoURL = dataUrl;
+    profileCache.set(currentUser.uid, myProfile);
+    renderOwnAvatar();
+    showToast('Photo updated', 'Your profile picture has been changed.');
+  } catch(err){
+    showToast('Upload failed', 'Could not update your photo. Try again.');
+  }
+});
 
 completeForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -915,6 +1003,15 @@ function escapeHtml(s){
 }
 function initialsFor(name){
   return (name || '?').slice(0, 2).toUpperCase();
+}
+const DEFAULT_AVATAR_SVG = `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><path d="M4 24 L13 24 L16.5 17 L20 28 L23.5 12 L27 24 L36 24" fill="none" stroke="#c79a44" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="30" cy="9" r="2.4" fill="#c79a44"/></svg>`;
+function avatarHtml(profile, extraClass){
+  extraClass = extraClass || '';
+  if(profile && profile.photoURL){
+    const safeUrl = profile.photoURL.replace(/"/g, '%22');
+    return `<div class="avatar ${extraClass}" style="background-image:url(&quot;${safeUrl}&quot;)"></div>`;
+  }
+  return `<div class="avatar avatar-default ${extraClass}">${DEFAULT_AVATAR_SVG}</div>`;
 }
 function chatIdFor(uidA, uidB){
   return [uidA, uidB].sort().join('_');
@@ -989,7 +1086,7 @@ async function runSearch(term){
       actionHtml = `<button class="sr-action" data-add="${r.uid}">ADD</button>`;
     }
     row.innerHTML = `
-      <div class="avatar">${initialsFor(r.displayName)}</div>
+      ${avatarHtml(r)}
       <div class="sr-info">
         <div class="sr-name">${escapeHtml(r.displayName)}</div>
         <div class="sr-username">@${escapeHtml(r.username)}</div>
@@ -1139,7 +1236,7 @@ function renderLists(){
       const p = profileCache.get(uid) || {};
       html += `
         <div class="request-row">
-          <div class="avatar">${initialsFor(p.displayName)}</div>
+          ${avatarHtml(p)}
           <div class="contact-info">
             <div class="contact-name">${escapeHtml(p.displayName)} <span class="uname">@${escapeHtml(p.username)}</span></div>
           </div>
@@ -1168,7 +1265,7 @@ function renderLists(){
       }
       html += `
         <div class="contact ${activePeerUid === uid ? 'active' : ''}" data-open="${uid}">
-          <div class="avatar">${initialsFor(p.displayName)}</div>
+          ${avatarHtml(p)}
           <div class="contact-info">
             <div class="contact-name">${escapeHtml(p.displayName)} <span class="uname">@${escapeHtml(p.username)}</span></div>
             <div class="contact-preview ${unread ? 'unread' : ''}">${escapeHtml(preview)}</div>
@@ -1272,7 +1369,7 @@ function renderChatShell(peerUid, peer){
   mainPanel.innerHTML = `
     <div class="chat-head">
       <button class="back-btn" id="backBtn" aria-label="Back to contacts">←</button>
-      <div class="avatar">${initialsFor(peer.displayName)}</div>
+      ${avatarHtml(peer)}
       <div class="chat-head-info">
         <div class="name">${escapeHtml(peer.displayName)}</div>
         <div class="status">@${escapeHtml(peer.username)}</div>
