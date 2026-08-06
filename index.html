@@ -351,6 +351,19 @@
   }
   .avatar-default{ background-color: var(--ink-3); padding:8px; }
   .avatar-default svg{ width:100%; height:100%; }
+  .avatar-wrap{ position: relative; display:inline-flex; flex-shrink:0; cursor:pointer; }
+  .status-dot{
+    position:absolute;
+    bottom:-1px; right:-1px;
+    width:11px; height:11px;
+    border-radius:50%;
+    border: 2px solid var(--ink);
+  }
+  .status-dot.status-dot-light{ border-color: var(--paper); }
+  .status-dot.status-dot-invisible{
+    background: var(--ink-3) !important;
+    border: 2px solid var(--brass);
+  }
   .own-avatar-wrap{
     position: relative;
     width: 40px; height:40px;
@@ -565,6 +578,110 @@
   .empty-state .glyph{ font-family: var(--font-display); font-size: 34px; letter-spacing: 6px; }
   .empty-state p{ font-family: var(--font-display); font-size: 11px; letter-spacing: 2px; }
 
+  /* ---------- Profile modal ---------- */
+  .modal-overlay{
+    display:none;
+    position: fixed; inset:0;
+    background: rgba(10,14,18,0.6);
+    align-items:center;
+    justify-content:center;
+    z-index: 60;
+    padding: 20px;
+  }
+  .modal-overlay.visible{ display:flex; }
+  .modal-card{
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 30px 28px;
+    width: 320px;
+    max-width: 100%;
+    text-align:center;
+    position:relative;
+  }
+  .modal-close{
+    position:absolute; top:12px; right:14px;
+    background:none; border:none;
+    color: rgba(239,232,216,0.4);
+    font-size: 18px;
+    cursor:pointer;
+    line-height:1;
+  }
+  .modal-close:hover{ color: var(--paper); }
+  .modal-avatar-big{
+    width: 84px; height:84px;
+    margin: 0 auto 14px;
+    position: relative;
+  }
+  .modal-avatar-big .avatar{ width:84px; height:84px; font-size:24px; }
+  .modal-avatar-big .status-dot{ width:16px; height:16px; border-width:3px; }
+  .modal-name{ font-size: 18px; font-weight:bold; color: var(--paper); }
+  .modal-username{ font-family: var(--font-display); font-size: 11px; color: rgba(239,232,216,0.4); margin-top:4px; }
+  .modal-status-label{
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing:1.5px;
+    margin-top: 10px;
+    padding: 5px 10px;
+    border-radius: 12px;
+    display:inline-block;
+  }
+  .modal-section{ margin-top: 22px; text-align:left; }
+  .modal-section-label{
+    font-family: var(--font-display);
+    font-size: 9.5px;
+    letter-spacing: 1.5px;
+    color: rgba(239,232,216,0.4);
+    margin-bottom: 8px;
+  }
+  .modal-input{
+    width:100%;
+    background: var(--ink);
+    border: 1px solid var(--line);
+    color: var(--paper);
+    padding: 9px 12px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    border-radius: 3px;
+    outline:none;
+    margin-bottom: 8px;
+  }
+  .modal-input:focus{ border-color: var(--brass); }
+  .modal-btn{
+    width:100%;
+    background: var(--brass);
+    color: var(--ink);
+    border:none;
+    font-family: var(--font-display);
+    letter-spacing: 1.5px;
+    font-size: 10.5px;
+    font-weight:bold;
+    padding: 10px;
+    border-radius: 4px;
+    cursor:pointer;
+  }
+  .modal-btn:hover{ background: #d6ab54; }
+  .modal-btn-secondary{
+    background: none;
+    border: 1px solid var(--line);
+    color: rgba(239,232,216,0.6);
+    margin-top: 6px;
+  }
+  .modal-btn-secondary:hover{ border-color: var(--brass); color: var(--brass); }
+  .status-options{ display:flex; flex-direction:column; gap:6px; }
+  .status-option{
+    display:flex; align-items:center; gap:9px;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    cursor:pointer;
+    background: var(--ink);
+  }
+  .status-option.selected{ border-color: var(--brass); background: var(--ink-3); }
+  .status-option .dot-sample{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .status-option-text{ font-size: 13px; color: var(--paper); }
+  .status-option-desc{ font-size: 11px; color: rgba(239,232,216,0.4); margin-top:1px; }
+
   @media (max-width: 760px){
     .app{ grid-template-columns: 1fr; max-width:none; }
     .sidebar{ position: fixed; inset: 0; z-index: 5; transition: transform .25s ease; width:100%; }
@@ -576,6 +693,10 @@
 <body>
 
 <div id="toastStack"></div>
+
+<div class="modal-overlay" id="profileModalOverlay">
+  <div class="modal-card" id="profileModalCard"></div>
+</div>
 
 <div class="auth-screen" id="authScreen">
   <div class="auth-card">
@@ -726,12 +847,76 @@ let olderMessages = [];    // paginated-in history, older than the live window (
 let hasMoreOlder = true;
 let loadingOlder = false;
 let unsubFriendships = null;
-const profileCache = new Map(); // uid -> {displayName, username, email}
+const profileCache = new Map(); // uid -> {displayName, username, email, presenceMode, lastActive, photoURL}
 const chatUnsubs = new Map(); // chatId -> unsub for last-message listener
+const presenceUnsubs = new Map(); // uid -> unsub for their profile doc (status changes)
 const lastOpened = new Map(); // chatId -> timestamp
 const unreadCounts = new Map(); // chatId -> count
 const lastMessages = new Map(); // chatId -> {text, from, t}
 let friendshipsInitial = true;
+let heartbeatInterval = null;
+let presenceTickInterval = null;
+
+// ---------- Presence ----------
+const ACTIVE_MS = 60 * 1000;       // heartbeat within this = "active"
+const IDLE_MS = 5 * 60 * 1000;     // heartbeat within this (but past ACTIVE) = "idle"; beyond = "offline"
+const STATUS_META = {
+  active:    { label: 'Active',         color: '#5c8a5c' },
+  idle:      { label: 'Idle',           color: '#c79a44' },
+  dnd:       { label: 'Do Not Disturb', color: '#a8492e' },
+  offline:   { label: 'Offline',        color: '#5a6570' },
+  invisible: { label: 'Invisible (only you see this)', color: '#5a6570' }
+};
+
+function computeStatus(profile){
+  if(!profile) return 'offline';
+  if(profile.presenceMode === 'invisible') return 'offline';
+  const last = profile.lastActive || 0;
+  const diff = Date.now() - last;
+  if(profile.presenceMode === 'dnd'){
+    return diff < ACTIVE_MS ? 'dnd' : 'offline';
+  }
+  if(diff < ACTIVE_MS) return 'active';
+  if(diff < IDLE_MS) return 'idle';
+  return 'offline';
+}
+
+function ownEffectiveStatus(){
+  if(!myProfile) return 'offline';
+  if(myProfile.presenceMode === 'dnd') return 'dnd';
+  if(myProfile.presenceMode === 'invisible') return 'invisible';
+  return 'active';
+}
+
+async function sendHeartbeat(){
+  if(!currentUser) return;
+  try{ await updateDoc(doc(db, 'users', currentUser.uid), { lastActive: Date.now() }); }
+  catch(e){}
+}
+
+async function setPresenceMode(mode){
+  if(!currentUser) return;
+  myProfile.presenceMode = mode;
+  profileCache.set(currentUser.uid, myProfile);
+  renderOwnAvatar();
+  try{
+    await updateDoc(doc(db, 'users', currentUser.uid), { presenceMode: mode, lastActive: Date.now() });
+  }catch(e){}
+}
+
+function subscribePresence(uid){
+  if(presenceUnsubs.has(uid)) return;
+  const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
+    if(!snap.exists()) return;
+    const data = snap.data();
+    profileCache.set(uid, data);
+    renderLists();
+    if(activePeerUid === uid){
+      updateChatHeaderStatus(data);
+    }
+  });
+  presenceUnsubs.set(uid, unsub);
+}
 
 // ---------- Toasts / notifications ----------
 function showToast(title, body){
@@ -801,7 +986,9 @@ authForm.addEventListener('submit', async (e) => {
         email: email,
         displayName: displayName,
         username: usernameLower,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        presenceMode: 'auto',
+        lastActive: Date.now()
       });
       await setDoc(doc(db, 'usernames', usernameLower), { uid: cred.user.uid });
     }
@@ -828,7 +1015,12 @@ function friendlyError(code){
   return map[code] || 'Something went wrong. Please try again.';
 }
 
-logoutBtn.addEventListener('click', () => signOut(auth));
+logoutBtn.addEventListener('click', async () => {
+  if(currentUser){
+    try{ await updateDoc(doc(db, 'users', currentUser.uid), { lastActive: 0 }); } catch(e){}
+  }
+  signOut(auth);
+});
 document.getElementById('completeLogoutLink').addEventListener('click', () => signOut(auth));
 
 document.getElementById('forgotLink').addEventListener('click', async () => {
@@ -887,20 +1079,37 @@ function enterApp(){
   completeProfileScreen.style.display = 'none';
   appEl.classList.add('visible');
   userLabel.textContent = myProfile.username ? '@' + myProfile.username : myProfile.email;
+  if(myProfile.presenceMode === undefined) myProfile.presenceMode = 'auto';
   renderOwnAvatar();
 
   requestNotifyPermission();
   friendshipsInitial = true;
   subscribeFriendships();
+
+  sendHeartbeat();
+  if(heartbeatInterval) clearInterval(heartbeatInterval);
+  heartbeatInterval = setInterval(() => { if(!document.hidden) sendHeartbeat(); }, 25000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) sendHeartbeat(); });
+
+  if(presenceTickInterval) clearInterval(presenceTickInterval);
+  presenceTickInterval = setInterval(() => {
+    renderLists();
+    if(activePeerUid) updateChatHeaderStatus(profileCache.get(activePeerUid));
+    renderOwnAvatar();
+  }, 30000);
 }
 
 function renderOwnAvatar(){
   const wrap = document.getElementById('ownAvatarWrap');
-  if(wrap) wrap.innerHTML = avatarHtml(myProfile);
+  if(!wrap) return;
+  const status = ownEffectiveStatus();
+  const meta = STATUS_META[status];
+  const dotClass = 'status-dot' + (status === 'invisible' ? ' status-dot-invisible' : '');
+  wrap.innerHTML = `${avatarHtml(myProfile)}<span class="${dotClass}" style="background:${meta.color}" title="${meta.label}"></span>`;
 }
 
 document.getElementById('ownAvatarWrap').addEventListener('click', () => {
-  document.getElementById('avatarFileInput').click();
+  openProfileModal(currentUser.uid, myProfile);
 });
 
 function compressImageToDataURL(file, maxDim, quality){
@@ -947,10 +1156,130 @@ document.getElementById('avatarFileInput').addEventListener('change', async (e) 
     profileCache.set(currentUser.uid, myProfile);
     renderOwnAvatar();
     showToast('Photo updated', 'Your profile picture has been changed.');
+    if(profileModalUid === currentUser.uid) renderProfileModal();
   } catch(err){
     showToast('Upload failed', 'Could not update your photo. Try again.');
   }
 });
+
+// ---------- Profile modal ----------
+const profileModalOverlay = document.getElementById('profileModalOverlay');
+const profileModalCard = document.getElementById('profileModalCard');
+let profileModalUid = null;
+
+function openProfileModal(uid, profile){
+  profileModalUid = uid;
+  if(profile) profileCache.set(uid, profile);
+  renderProfileModal();
+  profileModalOverlay.classList.add('visible');
+}
+function closeProfileModal(){
+  profileModalOverlay.classList.remove('visible');
+  profileModalUid = null;
+}
+profileModalOverlay.addEventListener('click', (e) => {
+  if(e.target === profileModalOverlay) closeProfileModal();
+});
+
+function renderProfileModal(){
+  const uid = profileModalUid;
+  if(!uid) return;
+  const isSelf = uid === currentUser.uid;
+  const p = isSelf ? myProfile : (profileCache.get(uid) || {});
+  const status = isSelf ? ownEffectiveStatus() : computeStatus(p);
+  const meta = STATUS_META[status];
+  const dotClass = 'status-dot' + (status === 'invisible' ? ' status-dot-invisible' : '');
+
+  let html = `
+    <button class="modal-close" id="modalCloseBtn">✕</button>
+    <div class="modal-avatar-big">
+      ${avatarHtml(p, 'modal-avatar-inner')}
+      <span class="${dotClass}" style="background:${meta.color}" title="${meta.label}"></span>
+    </div>
+    <div class="modal-name">${escapeHtml(p.displayName || '')}</div>
+    <div class="modal-username">@${escapeHtml(p.username || '')}</div>
+    <div class="modal-status-label" style="background:${meta.color}22; color:${meta.color}; border:1px solid ${meta.color}55;">${meta.label.toUpperCase()}</div>
+  `;
+
+  if(isSelf){
+    html += `
+      <div class="modal-section">
+        <div class="modal-section-label">DISPLAY NAME</div>
+        <input class="modal-input" id="modalNameInput" value="${escapeHtml(p.displayName || '')}" maxlength="40">
+        <button class="modal-btn" id="modalSaveNameBtn">SAVE NAME</button>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-label">PROFILE PHOTO</div>
+        <button class="modal-btn modal-btn-secondary" id="modalChangePhotoBtn">CHANGE PHOTO</button>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-label">STATUS</div>
+        <div class="status-options">
+          ${statusOptionHtml('auto', 'Automatic', 'Shows Active or Idle based on activity', myProfile.presenceMode === 'invisible' || myProfile.presenceMode === 'dnd' ? false : true)}
+          ${statusOptionHtml('dnd', 'Do Not Disturb', "Friends see you're online but busy", myProfile.presenceMode === 'dnd')}
+          ${statusOptionHtml('invisible', 'Invisible', 'You appear offline to everyone', myProfile.presenceMode === 'invisible')}
+        </div>
+      </div>
+    `;
+  }
+
+  profileModalCard.innerHTML = html;
+  document.getElementById('modalCloseBtn').addEventListener('click', closeProfileModal);
+
+  if(isSelf){
+    document.getElementById('modalChangePhotoBtn').addEventListener('click', () => {
+      document.getElementById('avatarFileInput').click();
+    });
+    document.getElementById('modalSaveNameBtn').addEventListener('click', async () => {
+      const name = document.getElementById('modalNameInput').value.trim();
+      if(!name){ showToast('Name required', "Display name can't be empty."); return; }
+      try{
+        await updateDoc(doc(db, 'users', currentUser.uid), { displayName: name });
+        myProfile.displayName = name;
+        profileCache.set(currentUser.uid, myProfile);
+        renderOwnAvatar();
+        renderLists();
+        showToast('Name updated', 'Your display name has been changed.');
+      } catch(err){
+        showToast('Update failed', 'Could not update your name.');
+      }
+    });
+    profileModalCard.querySelectorAll('.status-option').forEach(el => {
+      el.addEventListener('click', () => {
+        setPresenceMode(el.getAttribute('data-mode'));
+        renderProfileModal();
+      });
+    });
+  }
+}
+
+function statusOptionHtml(mode, title, desc, selected){
+  const color = mode === 'auto' ? STATUS_META.active.color : STATUS_META[mode].color;
+  return `
+    <div class="status-option ${selected ? 'selected' : ''}" data-mode="${mode}">
+      <span class="dot-sample" style="background:${color}"></span>
+      <div>
+        <div class="status-option-text">${title}</div>
+        <div class="status-option-desc">${desc}</div>
+      </div>
+    </div>
+  `;
+}
+
+function updateChatHeaderStatus(profile){
+  const el = document.getElementById('chatHeadStatus');
+  const dotWrap = document.getElementById('chatHeadAvatarWrap');
+  if(!el) return;
+  const status = computeStatus(profile);
+  const meta = STATUS_META[status];
+  const uname = el.getAttribute('data-username') || '';
+  el.textContent = '@' + uname + '  ·  ' + meta.label.toUpperCase();
+  el.style.color = meta.color;
+  if(dotWrap){
+    const dot = dotWrap.querySelector('.status-dot');
+    if(dot) dot.style.background = meta.color;
+  }
+}
 
 completeForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -968,7 +1297,9 @@ completeForm.addEventListener('submit', async (e) => {
       email: currentUser.email,
       displayName: displayName,
       username: usernameLower,
-      createdAt: myProfile.createdAt || Date.now()
+      createdAt: myProfile.createdAt || Date.now(),
+      presenceMode: 'auto',
+      lastActive: Date.now()
     });
     await setDoc(doc(db, 'usernames', usernameLower), { uid: currentUser.uid });
 
@@ -988,6 +1319,10 @@ function cleanupSubscriptions(){
   if(unsubFriendships) { unsubFriendships(); unsubFriendships = null; }
   chatUnsubs.forEach(fn => fn());
   chatUnsubs.clear();
+  presenceUnsubs.forEach(fn => fn());
+  presenceUnsubs.clear();
+  if(heartbeatInterval){ clearInterval(heartbeatInterval); heartbeatInterval = null; }
+  if(presenceTickInterval){ clearInterval(presenceTickInterval); presenceTickInterval = null; }
   lastOpened.clear();
   unreadCounts.clear();
   lastMessages.clear();
@@ -1012,6 +1347,13 @@ function avatarHtml(profile, extraClass){
     return `<div class="avatar ${extraClass}" style="background-image:url(&quot;${safeUrl}&quot;)"></div>`;
   }
   return `<div class="avatar avatar-default ${extraClass}">${DEFAULT_AVATAR_SVG}</div>`;
+}
+function avatarWithStatus(profile, opts){
+  opts = opts || {};
+  const status = computeStatus(profile);
+  const meta = STATUS_META[status];
+  const dotClass = 'status-dot' + (opts.light ? ' status-dot-light' : '');
+  return `<div class="avatar-wrap" data-profile-uid="${opts.uid || ''}">${avatarHtml(profile)}<span class="${dotClass}" style="background:${meta.color}" title="${meta.label}"></span></div>`;
 }
 function chatIdFor(uidA, uidB){
   return [uidA, uidB].sort().join('_');
@@ -1086,7 +1428,7 @@ async function runSearch(term){
       actionHtml = `<button class="sr-action" data-add="${r.uid}">ADD</button>`;
     }
     row.innerHTML = `
-      ${avatarHtml(r)}
+      ${avatarWithStatus(r, {uid: r.uid})}
       <div class="sr-info">
         <div class="sr-name">${escapeHtml(r.displayName)}</div>
         <div class="sr-username">@${escapeHtml(r.username)}</div>
@@ -1097,6 +1439,13 @@ async function runSearch(term){
   }
   searchResultsEl.classList.add('visible');
 
+  searchResultsEl.querySelectorAll('.avatar-wrap[data-profile-uid]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const uid = el.getAttribute('data-profile-uid');
+      if(uid) openProfileModal(uid, profileCache.get(uid));
+    });
+  });
   searchResultsEl.querySelectorAll('[data-add]').forEach(btn => {
     btn.addEventListener('click', () => sendFriendRequest(btn.getAttribute('data-add')));
   });
@@ -1187,10 +1536,14 @@ function subscribeFriendships(){
       const cid = chatIdFor(currentUser.uid, uid);
       if(!lastOpened.has(cid)) lastOpened.set(cid, Date.now());
       if(!chatUnsubs.has(cid)) subscribeLastMessage(cid, uid);
+      subscribePresence(uid);
     }
     for(const [cid, unsub] of chatUnsubs.entries()){
       const uid = cid.replace(currentUser.uid, '').replace('_', '');
       if(!acceptedUids.has(uid)){ unsub(); chatUnsubs.delete(cid); }
+    }
+    for(const [uid, unsub] of presenceUnsubs.entries()){
+      if(!acceptedUids.has(uid)){ unsub(); presenceUnsubs.delete(uid); }
     }
 
     friendshipsInitial = false;
@@ -1236,7 +1589,7 @@ function renderLists(){
       const p = profileCache.get(uid) || {};
       html += `
         <div class="request-row">
-          ${avatarHtml(p)}
+          ${avatarWithStatus(p, {uid})}
           <div class="contact-info">
             <div class="contact-name">${escapeHtml(p.displayName)} <span class="uname">@${escapeHtml(p.username)}</span></div>
           </div>
@@ -1265,7 +1618,7 @@ function renderLists(){
       }
       html += `
         <div class="contact ${activePeerUid === uid ? 'active' : ''}" data-open="${uid}">
-          ${avatarHtml(p)}
+          ${avatarWithStatus(p, {uid})}
           <div class="contact-info">
             <div class="contact-name">${escapeHtml(p.displayName)} <span class="uname">@${escapeHtml(p.username)}</span></div>
             <div class="contact-preview ${unread ? 'unread' : ''}">${escapeHtml(preview)}</div>
@@ -1277,6 +1630,14 @@ function renderLists(){
   }
 
   listsEl.innerHTML = html;
+
+  listsEl.querySelectorAll('.avatar-wrap[data-profile-uid]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const uid = el.getAttribute('data-profile-uid');
+      if(uid) openProfileModal(uid, profileCache.get(uid));
+    });
+  });
 
   listsEl.querySelectorAll('[data-open]').forEach(el => {
     el.addEventListener('click', () => {
@@ -1369,10 +1730,10 @@ function renderChatShell(peerUid, peer){
   mainPanel.innerHTML = `
     <div class="chat-head">
       <button class="back-btn" id="backBtn" aria-label="Back to contacts">←</button>
-      ${avatarHtml(peer)}
-      <div class="chat-head-info">
+      <div class="avatar-wrap" id="chatHeadAvatarWrap">${avatarWithStatus(peer, {light:true, uid: peerUid})}</div>
+      <div class="chat-head-info" id="chatHeadInfo">
         <div class="name">${escapeHtml(peer.displayName)}</div>
-        <div class="status">@${escapeHtml(peer.username)}</div>
+        <div class="status" id="chatHeadStatus" data-username="${escapeHtml(peer.username)}">@${escapeHtml(peer.username)}</div>
       </div>
       <button class="remove-friend-btn" id="removeFriendBtn">REMOVE</button>
     </div>
@@ -1384,6 +1745,9 @@ function renderChatShell(peerUid, peer){
   `;
   document.getElementById('backBtn').addEventListener('click', () => appEl.classList.remove('chat-open'));
   document.getElementById('removeFriendBtn').addEventListener('click', () => removeFriend(peerUid));
+  document.getElementById('chatHeadAvatarWrap').addEventListener('click', () => openProfileModal(peerUid, peer));
+  document.getElementById('chatHeadInfo').addEventListener('click', () => openProfileModal(peerUid, peer));
+  updateChatHeaderStatus(profileCache.get(peerUid) || peer);
 
   const input = document.getElementById('composerInput');
   const sendBtn = document.getElementById('sendBtn');
