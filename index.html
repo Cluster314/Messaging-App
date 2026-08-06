@@ -9,11 +9,13 @@
   :root{
     --ink:#141c24;
     --ink-2:#1c2731;
+    --ink-3:#243140;
     --paper:#efe8d8;
     --paper-2:#e4dcc7;
     --brass:#c79a44;
     --brass-dim:#a17f3a;
     --rust:#a8492e;
+    --green:#5c8a5c;
     --line: rgba(239,232,216,0.12);
     --line-dark: rgba(20,28,36,0.12);
     --font-display: 'Courier New', ui-monospace, monospace;
@@ -31,6 +33,36 @@
   @media (prefers-reduced-motion: reduce){
     *{animation-duration: 0.001ms !important; transition-duration: 0.001ms !important;}
   }
+  button{ font-family: inherit; }
+
+  /* ---------- Toasts ---------- */
+  #toastStack{
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 100;
+    display:flex;
+    flex-direction:column;
+    gap: 8px;
+    max-width: 300px;
+  }
+  .toast{
+    background: var(--ink-2);
+    border: 1px solid var(--brass);
+    border-radius: 5px;
+    padding: 12px 14px;
+    animation: slidein 0.25s ease both;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+  }
+  @keyframes slidein{ from{ opacity:0; transform: translateX(20px);} to{opacity:1; transform:translateX(0);} }
+  .toast-title{
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--brass);
+    margin-bottom: 4px;
+  }
+  .toast-body{ font-size: 13px; color: var(--paper); }
 
   /* ---------- Auth screen ---------- */
   .auth-screen{
@@ -41,6 +73,8 @@
     background: var(--ink);
     background-image: radial-gradient(circle at 1px 1px, rgba(239,232,216,0.05) 1px, transparent 0);
     background-size: 24px 24px;
+    overflow-y:auto;
+    padding: 20px;
   }
   .auth-card{
     width: 340px;
@@ -93,6 +127,12 @@
     outline: none;
   }
   .field input:focus{ border-color: var(--brass); }
+  .field-hint{
+    font-size: 11px;
+    color: rgba(239,232,216,0.35);
+    margin-top: 4px;
+  }
+  .signup-only{ display:none; }
   .auth-btn{
     width:100%;
     background: var(--brass);
@@ -130,7 +170,7 @@
   /* ---------- App shell ---------- */
   .app{
     display:none;
-    grid-template-columns: 300px 1fr;
+    grid-template-columns: 320px 1fr;
     height:100vh;
     max-width: 1200px;
     margin: 0 auto;
@@ -147,7 +187,7 @@
     min-width:0;
   }
   .sidebar-head{
-    padding: 20px 20px 14px;
+    padding: 18px 20px 12px;
     border-bottom: 1px solid var(--line);
   }
   .brand{
@@ -187,7 +227,8 @@
     overflow:hidden;
     text-overflow:ellipsis;
   }
-  .search-wrap{ padding: 14px 16px; }
+
+  .search-wrap{ padding: 12px 16px 4px; position:relative; }
   .search-wrap input{
     width:100%;
     background: var(--ink-2);
@@ -201,16 +242,94 @@
   }
   .search-wrap input::placeholder{ color: rgba(239,232,216,0.35); }
   .search-wrap input:focus{ border-color: var(--brass); }
+  .search-results{
+    margin-top: 6px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow:hidden;
+    display:none;
+  }
+  .search-results.visible{ display:block; }
+  .search-result-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 9px 10px;
+    background: var(--ink-2);
+    border-bottom: 1px solid var(--line);
+  }
+  .search-result-row:last-child{ border-bottom:none; }
+  .sr-info{ flex:1; min-width:0; }
+  .sr-name{ font-size:13px; color:var(--paper); }
+  .sr-username{ font-family: var(--font-display); font-size:10px; color: rgba(239,232,216,0.4); }
+  .sr-action{
+    font-family: var(--font-display);
+    font-size: 9.5px;
+    letter-spacing: 1px;
+    padding: 5px 9px;
+    border-radius: 3px;
+    border: 1px solid var(--brass);
+    color: var(--brass);
+    background:none;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .sr-action:hover{ background: var(--brass); color: var(--ink); }
+  .sr-action.disabled{
+    border-color: var(--line);
+    color: rgba(239,232,216,0.3);
+    cursor:default;
+  }
+  .sr-action.disabled:hover{ background:none; color: rgba(239,232,216,0.3); }
 
-  .contacts{ flex:1; overflow-y: auto; }
-  .contacts::-webkit-scrollbar{ width:6px; }
-  .contacts::-webkit-scrollbar-thumb{ background: var(--ink-2); border-radius:3px; }
+  .section-label{
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(239,232,216,0.4);
+    padding: 14px 16px 6px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .badge-count{
+    background: var(--rust);
+    color: var(--paper);
+    font-size: 10px;
+    min-width:16px; height:16px;
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    padding:0 5px;
+  }
+
+  .lists{ flex:1; overflow-y:auto; }
+  .lists::-webkit-scrollbar{ width:6px; }
+  .lists::-webkit-scrollbar-thumb{ background: var(--ink-2); border-radius:3px; }
+
+  .request-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 10px 16px;
+  }
+  .request-actions{ display:flex; gap:6px; }
+  .req-btn{
+    font-family: var(--font-display);
+    font-size: 9.5px;
+    letter-spacing: 1px;
+    padding: 5px 8px;
+    border-radius: 3px;
+    border: none;
+    cursor:pointer;
+  }
+  .req-accept{ background: var(--brass); color: var(--ink); }
+  .req-decline{ background: var(--ink-3); color: rgba(239,232,216,0.6); }
 
   .contact{
     display:flex;
     align-items:center;
     gap: 12px;
-    padding: 12px 16px;
+    padding: 11px 16px;
     cursor:pointer;
     border-left: 3px solid transparent;
   }
@@ -227,7 +346,8 @@
     flex-shrink:0;
   }
   .contact-info{ flex:1; min-width:0; }
-  .contact-name{ font-size: 14.5px; color: var(--paper); }
+  .contact-name{ font-size: 14.5px; color: var(--paper); display:flex; align-items:center; gap:6px; }
+  .contact-name .uname{ font-family: var(--font-display); font-size: 9.5px; color: rgba(239,232,216,0.35); }
   .contact-preview{
     font-size: 12.5px;
     color: rgba(239,232,216,0.45);
@@ -236,12 +356,18 @@
     text-overflow:ellipsis;
     margin-top: 2px;
   }
-  .empty-contacts{
-    padding: 30px 20px;
+  .contact-preview.unread{ color: var(--paper); font-weight:bold; }
+  .unread-dot{
+    width:8px; height:8px; border-radius:50%;
+    background: var(--rust);
+    flex-shrink:0;
+  }
+  .empty-note{
+    padding: 20px 20px;
     font-family: var(--font-display);
-    font-size: 11px;
+    font-size: 10.5px;
     letter-spacing: 1px;
-    color: rgba(239,232,216,0.35);
+    color: rgba(239,232,216,0.3);
     line-height:1.8;
   }
 
@@ -269,6 +395,7 @@
     padding: 4px 8px 4px 0;
   }
   .chat-head .avatar{ width:34px; height:34px; font-size:12px; }
+  .chat-head-info{ flex:1; }
   .chat-head-info .name{ font-size: 15.5px; font-weight:bold; }
   .chat-head-info .status{
     font-family: var(--font-display);
@@ -277,6 +404,18 @@
     color: var(--brass-dim);
     margin-top:2px;
   }
+  .remove-friend-btn{
+    background:none;
+    border: 1px solid var(--line-dark);
+    color: rgba(20,28,36,0.4);
+    font-family: var(--font-display);
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 5px 8px;
+    border-radius: 3px;
+    cursor:pointer;
+  }
+  .remove-friend-btn:hover{ border-color: var(--rust); color: var(--rust); }
 
   .messages{
     flex:1;
@@ -392,12 +531,23 @@
 </head>
 <body>
 
+<div id="toastStack"></div>
+
 <div class="auth-screen" id="authScreen">
   <div class="auth-card">
     <div class="auth-brand"><span class="dot"></span> WIRE</div>
     <div class="auth-sub">SECURE LINE · SIGN IN TO CONTINUE</div>
     <div class="auth-error" id="authError"></div>
     <form id="authForm">
+      <div class="field signup-only" id="displayNameField">
+        <label>Display name</label>
+        <input type="text" id="displayNameInput" autocomplete="name" maxlength="40">
+      </div>
+      <div class="field signup-only" id="usernameField">
+        <label>Username</label>
+        <input type="text" id="usernameInput" autocomplete="off" maxlength="20">
+        <div class="field-hint">Lowercase letters, numbers, underscores. 3–20 characters. This is how people find you.</div>
+      </div>
       <div class="field">
         <label>Email</label>
         <input type="email" id="emailInput" required autocomplete="email">
@@ -421,12 +571,13 @@
         <div class="brand-left"><span class="dot"></span> WIRE</div>
         <button class="logout-btn" id="logoutBtn">LOG OUT</button>
       </div>
-      <div class="brand-sub" id="userEmailLabel"></div>
+      <div class="brand-sub" id="userLabel"></div>
     </div>
     <div class="search-wrap">
-      <input type="text" id="searchInput" placeholder="Search people…" autocomplete="off">
+      <input type="text" id="searchInput" placeholder="Find people by @username…" autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
     </div>
-    <div class="contacts" id="contactList"></div>
+    <div class="lists" id="lists"></div>
   </aside>
 
   <main class="main" id="mainPanel">
@@ -444,8 +595,8 @@ import {
   onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, getDoc, collection, query, orderBy,
-  onSnapshot, addDoc, getDocs
+  getFirestore, doc, setDoc, getDoc, deleteDoc, updateDoc, collection, query, orderBy,
+  onSnapshot, addDoc, getDocs, where, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -468,28 +619,65 @@ const authError = document.getElementById('authError');
 const authSubmitBtn = document.getElementById('authSubmitBtn');
 const toggleLink = document.getElementById('toggleLink');
 const authToggle = document.getElementById('authToggle');
+const displayNameField = document.getElementById('displayNameField');
+const usernameField = document.getElementById('usernameField');
+const displayNameInput = document.getElementById('displayNameInput');
+const usernameInput = document.getElementById('usernameInput');
 const emailInput = document.getElementById('emailInput');
 const passwordInput = document.getElementById('passwordInput');
 
 const appEl = document.getElementById('app');
-const contactList = document.getElementById('contactList');
+const listsEl = document.getElementById('lists');
 const searchInput = document.getElementById('searchInput');
+const searchResultsEl = document.getElementById('searchResults');
 const mainPanel = document.getElementById('mainPanel');
-const userEmailLabel = document.getElementById('userEmailLabel');
+const userLabel = document.getElementById('userLabel');
 const logoutBtn = document.getElementById('logoutBtn');
+const toastStack = document.getElementById('toastStack');
 
-let mode = 'login'; // or 'signup'
+let mode = 'login';
 let currentUser = null;
-let allUsers = [];
+let myProfile = null; // {displayName, username, email}
 let activeChatId = null;
-let activePeer = null;
+let activePeerUid = null;
 let unsubMessages = null;
+let unsubFriendships = null;
+const profileCache = new Map(); // uid -> {displayName, username, email}
+const chatUnsubs = new Map(); // chatId -> unsub for last-message listener
+const lastOpened = new Map(); // chatId -> timestamp
+const unreadCounts = new Map(); // chatId -> count
+const lastMessages = new Map(); // chatId -> {text, from, t}
+let friendshipsInitial = true;
+
+// ---------- Toasts / notifications ----------
+function showToast(title, body){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<div class="toast-title">${escapeHtml(title)}</div><div class="toast-body">${escapeHtml(body)}</div>`;
+  toastStack.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+function notify(title, body){
+  showToast(title, body);
+  if(typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden){
+    try{ new Notification(title, { body }); } catch(e){}
+  }
+}
+
+function requestNotifyPermission(){
+  if(typeof Notification !== 'undefined' && Notification.permission === 'default'){
+    Notification.requestPermission();
+  }
+}
 
 // ---------- Auth screen behavior ----------
 function wireToggleLink(){
   document.getElementById('toggleLink').addEventListener('click', () => {
     mode = mode === 'login' ? 'signup' : 'login';
     authSubmitBtn.textContent = mode === 'login' ? 'LOG IN' : 'CREATE ACCOUNT';
+    displayNameField.style.display = mode === 'signup' ? 'block' : 'none';
+    usernameField.style.display = mode === 'signup' ? 'block' : 'none';
     authToggle.innerHTML = mode === 'login'
       ? `No account yet? <a id="toggleLink">Sign up</a>`
       : `Already have an account? <a id="toggleLink">Log in</a>`;
@@ -504,6 +692,8 @@ function showAuthError(msg){
   authError.style.display = 'block';
 }
 
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+
 authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   authError.style.display = 'none';
@@ -514,11 +704,21 @@ authForm.addEventListener('submit', async (e) => {
     if(mode === 'login'){
       await signInWithEmailAndPassword(auth, email, password);
     } else {
+      const displayName = displayNameInput.value.trim();
+      const usernameLower = usernameInput.value.trim().toLowerCase();
+      if(!displayName){ throw {code:'custom/no-name'}; }
+      if(!USERNAME_RE.test(usernameLower)){ throw {code:'custom/bad-username'}; }
+      const takenSnap = await getDoc(doc(db, 'usernames', usernameLower));
+      if(takenSnap.exists()){ throw {code:'custom/username-taken'}; }
+
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await setDoc(doc(db, 'users', cred.user.uid), {
         email: email,
+        displayName: displayName,
+        username: usernameLower,
         createdAt: Date.now()
       });
+      await setDoc(doc(db, 'usernames', usernameLower), { uid: cred.user.uid });
     }
   } catch(err){
     showAuthError(friendlyError(err.code));
@@ -535,7 +735,10 @@ function friendlyError(code){
     'auth/user-not-found': 'No account found with that email.',
     'auth/wrong-password': 'Incorrect password.',
     'auth/invalid-credential': 'Incorrect email or password.',
-    'auth/too-many-requests': 'Too many attempts. Try again in a moment.'
+    'auth/too-many-requests': 'Too many attempts. Try again in a moment.',
+    'custom/no-name': 'Please enter a display name.',
+    'custom/bad-username': 'Usernames must be 3–20 characters: lowercase letters, numbers, underscores only.',
+    'custom/username-taken': 'That username is already taken. Try another.'
   };
   return map[code] || 'Something went wrong. Please try again.';
 }
@@ -544,74 +747,62 @@ logoutBtn.addEventListener('click', () => signOut(auth));
 
 // ---------- Auth state ----------
 onAuthStateChanged(auth, async (user) => {
+  cleanupSubscriptions();
   if(user){
     currentUser = user;
     let snap = await getDoc(doc(db, 'users', user.uid));
     if(!snap.exists()){
-      await setDoc(doc(db, 'users', user.uid), { email: user.email, createdAt: Date.now() });
+      // shouldn't normally happen, but fallback
+      await setDoc(doc(db, 'users', user.uid), { email: user.email, displayName: user.email.split('@')[0], username: '', createdAt: Date.now() });
+      snap = await getDoc(doc(db, 'users', user.uid));
     }
+    myProfile = snap.data();
+    profileCache.set(user.uid, myProfile);
+
     authScreen.style.display = 'none';
     appEl.classList.add('visible');
-    userEmailLabel.textContent = user.email;
-    loadUsers();
+    userLabel.textContent = myProfile.username ? '@' + myProfile.username : myProfile.email;
+
+    requestNotifyPermission();
+    friendshipsInitial = true;
+    subscribeFriendships();
   } else {
     currentUser = null;
-    if(unsubMessages) unsubMessages();
+    myProfile = null;
     appEl.classList.remove('visible');
     authScreen.style.display = 'flex';
     authForm.reset();
+    listsEl.innerHTML = '';
+    mainPanel.innerHTML = `<div class="empty-state"><div class="glyph">✦</div><p>SELECT A LINE TO BEGIN</p></div>`;
   }
 });
 
-// ---------- Load other users ----------
-async function loadUsers(){
-  const snap = await getDocs(collection(db, 'users'));
-  allUsers = [];
-  snap.forEach(d => {
-    if(d.id !== currentUser.uid){
-      allUsers.push({ uid: d.id, email: d.data().email });
-    }
-  });
-  renderContacts('');
+function cleanupSubscriptions(){
+  if(unsubMessages) { unsubMessages(); unsubMessages = null; }
+  if(unsubFriendships) { unsubFriendships(); unsubFriendships = null; }
+  chatUnsubs.forEach(fn => fn());
+  chatUnsubs.clear();
+  lastOpened.clear();
+  unreadCounts.clear();
+  lastMessages.clear();
+  activeChatId = null;
+  activePeerUid = null;
 }
 
-function initialsFor(email){
-  return (email || '?').slice(0, 2).toUpperCase();
+// ---------- Helpers ----------
+function escapeHtml(s){
+  const div = document.createElement('div');
+  div.textContent = s == null ? '' : s;
+  return div.innerHTML;
 }
-
+function initialsFor(name){
+  return (name || '?').slice(0, 2).toUpperCase();
+}
 function chatIdFor(uidA, uidB){
   return [uidA, uidB].sort().join('_');
 }
-
-function renderContacts(filter){
-  filter = (filter || '').toLowerCase();
-  contactList.innerHTML = '';
-  const filtered = allUsers.filter(u => u.email.toLowerCase().includes(filter));
-  if(filtered.length === 0){
-    contactList.innerHTML = `<div class="empty-contacts">NO ONE HERE YET.<br>INVITE SOMEONE TO CREATE<br>AN ACCOUNT AND START A LINE.</div>`;
-    return;
-  }
-  filtered.forEach(u => {
-    const el = document.createElement('div');
-    el.className = 'contact' + (activePeer && activePeer.uid === u.uid ? ' active' : '');
-    el.innerHTML = `
-      <div class="avatar">${initialsFor(u.email)}</div>
-      <div class="contact-info">
-        <div class="contact-name">${escapeHtml(u.email)}</div>
-        <div class="contact-preview">Tap to open line</div>
-      </div>
-    `;
-    el.addEventListener('click', () => openChat(u));
-    contactList.appendChild(el);
-  });
-}
-
-searchInput.addEventListener('input', e => renderContacts(e.target.value));
-
-function escapeHtml(s){
-  const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
+function friendshipIdFor(uidA, uidB){
+  return [uidA, uidB].sort().join('_');
 }
 function fmtTime(ts){
   if(!ts) return '';
@@ -626,12 +817,275 @@ function fmtDayLabel(ts){
   if(diffDays === 1) return 'YESTERDAY';
   return d.toLocaleDateString([], {month:'short', day:'numeric'});
 }
+async function getProfile(uid){
+  if(profileCache.has(uid)) return profileCache.get(uid);
+  const snap = await getDoc(doc(db, 'users', uid));
+  const data = snap.exists() ? snap.data() : { displayName: 'Unknown', username: '', email:'' };
+  profileCache.set(uid, data);
+  return data;
+}
 
-function openChat(peer){
-  activePeer = peer;
-  activeChatId = chatIdFor(currentUser.uid, peer.uid);
-  renderContacts(searchInput.value);
-  renderChatShell(peer);
+// ---------- Search by username ----------
+let searchDebounce = null;
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchDebounce);
+  const term = searchInput.value.trim().toLowerCase();
+  if(!term){ searchResultsEl.classList.remove('visible'); searchResultsEl.innerHTML=''; return; }
+  searchDebounce = setTimeout(() => runSearch(term), 300);
+});
+
+async function runSearch(term){
+  const usersRef = collection(db, 'users');
+  const q = query(usersRef, orderBy('username'), where('username', '>=', term), where('username', '<=', term + '\uf8ff'), limit(8));
+  let snap;
+  try{
+    snap = await getDocs(q);
+  } catch(err){
+    searchResultsEl.innerHTML = `<div class="search-result-row"><div class="sr-info"><div class="sr-name">Search unavailable right now.</div></div></div>`;
+    searchResultsEl.classList.add('visible');
+    return;
+  }
+  const results = [];
+  snap.forEach(d => { if(d.id !== currentUser.uid) results.push({ uid: d.id, ...d.data() }); });
+
+  if(results.length === 0){
+    searchResultsEl.innerHTML = `<div class="search-result-row"><div class="sr-info"><div class="sr-name">No one found with that username.</div></div></div>`;
+    searchResultsEl.classList.add('visible');
+    return;
+  }
+
+  searchResultsEl.innerHTML = '';
+  for(const r of results){
+    profileCache.set(r.uid, r);
+    const status = friendshipStatusWith(r.uid);
+    const row = document.createElement('div');
+    row.className = 'search-result-row';
+    let actionHtml;
+    if(status === 'accepted'){
+      actionHtml = `<button class="sr-action disabled">FRIENDS</button>`;
+    } else if(status === 'outgoing'){
+      actionHtml = `<button class="sr-action disabled">PENDING</button>`;
+    } else if(status === 'incoming'){
+      actionHtml = `<button class="sr-action" data-accept="${r.uid}">ACCEPT</button>`;
+    } else {
+      actionHtml = `<button class="sr-action" data-add="${r.uid}">ADD</button>`;
+    }
+    row.innerHTML = `
+      <div class="avatar">${initialsFor(r.displayName)}</div>
+      <div class="sr-info">
+        <div class="sr-name">${escapeHtml(r.displayName)}</div>
+        <div class="sr-username">@${escapeHtml(r.username)}</div>
+      </div>
+      ${actionHtml}
+    `;
+    searchResultsEl.appendChild(row);
+  }
+  searchResultsEl.classList.add('visible');
+
+  searchResultsEl.querySelectorAll('[data-add]').forEach(btn => {
+    btn.addEventListener('click', () => sendFriendRequest(btn.getAttribute('data-add')));
+  });
+  searchResultsEl.querySelectorAll('[data-accept]').forEach(btn => {
+    btn.addEventListener('click', () => respondToRequest(btn.getAttribute('data-accept'), true));
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if(!searchResultsEl.contains(e.target) && e.target !== searchInput){
+    searchResultsEl.classList.remove('visible');
+  }
+});
+
+// ---------- Friendships ----------
+let friendshipsData = []; // raw docs
+function friendshipStatusWith(uid){
+  const fid = friendshipIdFor(currentUser.uid, uid);
+  const f = friendshipsData.find(x => x.id === fid);
+  if(!f) return 'none';
+  if(f.status === 'accepted') return 'accepted';
+  if(f.status === 'pending') return f.requestedBy === currentUser.uid ? 'outgoing' : 'incoming';
+  return 'none';
+}
+
+async function sendFriendRequest(uid){
+  const fid = friendshipIdFor(currentUser.uid, uid);
+  const ref = doc(db, 'friendships', fid);
+  const existing = await getDoc(ref);
+  if(existing.exists()) return;
+  await setDoc(ref, {
+    users: [currentUser.uid, uid],
+    requestedBy: currentUser.uid,
+    status: 'pending',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  });
+  searchInput.dispatchEvent(new Event('input'));
+}
+
+async function respondToRequest(uid, accept){
+  const fid = friendshipIdFor(currentUser.uid, uid);
+  const ref = doc(db, 'friendships', fid);
+  if(accept){
+    await updateDoc(ref, { status: 'accepted', updatedAt: Date.now() });
+  } else {
+    await deleteDoc(ref);
+  }
+}
+
+async function removeFriend(uid){
+  if(!confirm('Remove this friend? Your message history will remain but the line will close.')) return;
+  const fid = friendshipIdFor(currentUser.uid, uid);
+  await deleteDoc(doc(db, 'friendships', fid));
+}
+
+function subscribeFriendships(){
+  const q = query(collection(db, 'friendships'), where('users', 'array-contains', currentUser.uid));
+  unsubFriendships = onSnapshot(q, async (snapshot) => {
+    const wasInitial = friendshipsInitial;
+    const prevIncoming = new Set(
+      friendshipsData.filter(f => f.status === 'pending' && f.requestedBy !== currentUser.uid).map(f => f.id)
+    );
+
+    friendshipsData = [];
+    snapshot.forEach(d => friendshipsData.push({ id: d.id, ...d.data() }));
+
+    // fetch profiles for anyone we don't have cached
+    const otherUids = friendshipsData.map(f => f.users.find(u => u !== currentUser.uid));
+    await Promise.all(otherUids.map(uid => getProfile(uid)));
+
+    // notify about new incoming requests (skip on initial load)
+    if(!wasInitial){
+      friendshipsData.forEach(f => {
+        if(f.status === 'pending' && f.requestedBy !== currentUser.uid && !prevIncoming.has(f.id)){
+          const otherUid = f.users.find(u => u !== currentUser.uid);
+          const p = profileCache.get(otherUid);
+          notify('New friend request', (p ? p.displayName : 'Someone') + ' wants to connect.');
+        }
+      });
+    }
+
+    // set up / tear down last-message listeners for accepted friends
+    const acceptedUids = new Set(
+      friendshipsData.filter(f => f.status === 'accepted').map(f => f.users.find(u => u !== currentUser.uid))
+    );
+    for(const uid of acceptedUids){
+      const cid = chatIdFor(currentUser.uid, uid);
+      if(!lastOpened.has(cid)) lastOpened.set(cid, Date.now());
+      if(!chatUnsubs.has(cid)) subscribeLastMessage(cid, uid);
+    }
+    for(const [cid, unsub] of chatUnsubs.entries()){
+      const uid = cid.replace(currentUser.uid, '').replace('_', '');
+      if(!acceptedUids.has(uid)){ unsub(); chatUnsubs.delete(cid); }
+    }
+
+    friendshipsInitial = false;
+    renderLists();
+  });
+}
+
+function subscribeLastMessage(chatId, peerUid){
+  let isInitial = true;
+  const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('t', 'desc'), limit(1));
+  const unsub = onSnapshot(q, (snapshot) => {
+    if(snapshot.empty){ isInitial = false; return; }
+    const m = snapshot.docs[0].data();
+    lastMessages.set(chatId, m);
+
+    const isNewIncoming = m.from !== currentUser.uid && m.t > (lastOpened.get(chatId) || 0);
+    if(!isInitial && isNewIncoming){
+      if(activeChatId === chatId){
+        lastOpened.set(chatId, Date.now());
+      } else {
+        unreadCounts.set(chatId, (unreadCounts.get(chatId) || 0) + 1);
+        const p = profileCache.get(peerUid);
+        notify(p ? p.displayName : 'New message', m.text);
+      }
+    }
+    isInitial = false;
+    renderLists();
+  });
+  chatUnsubs.set(chatId, unsub);
+}
+
+// ---------- Render sidebar lists ----------
+function renderLists(){
+  const incoming = friendshipsData.filter(f => f.status === 'pending' && f.requestedBy !== currentUser.uid);
+  const accepted = friendshipsData.filter(f => f.status === 'accepted');
+
+  let html = '';
+
+  if(incoming.length){
+    html += `<div class="section-label">REQUESTS <span class="badge-count">${incoming.length}</span></div>`;
+    incoming.forEach(f => {
+      const uid = f.users.find(u => u !== currentUser.uid);
+      const p = profileCache.get(uid) || {};
+      html += `
+        <div class="request-row">
+          <div class="avatar">${initialsFor(p.displayName)}</div>
+          <div class="contact-info">
+            <div class="contact-name">${escapeHtml(p.displayName)} <span class="uname">@${escapeHtml(p.username)}</span></div>
+          </div>
+          <div class="request-actions">
+            <button class="req-btn req-accept" data-accept="${uid}">ACCEPT</button>
+            <button class="req-btn req-decline" data-decline="${uid}">DECLINE</button>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  html += `<div class="section-label">FRIENDS</div>`;
+  if(accepted.length === 0){
+    html += `<div class="empty-note">NO FRIENDS YET.<br>SEARCH A USERNAME ABOVE<br>TO SEND A REQUEST.</div>`;
+  } else {
+    accepted.forEach(f => {
+      const uid = f.users.find(u => u !== currentUser.uid);
+      const p = profileCache.get(uid) || {};
+      const cid = chatIdFor(currentUser.uid, uid);
+      const last = lastMessages.get(cid);
+      const unread = unreadCounts.get(cid) || 0;
+      let preview = 'Say hello';
+      if(last){
+        preview = (last.from === currentUser.uid ? 'You: ' : '') + last.text;
+      }
+      html += `
+        <div class="contact ${activePeerUid === uid ? 'active' : ''}" data-open="${uid}">
+          <div class="avatar">${initialsFor(p.displayName)}</div>
+          <div class="contact-info">
+            <div class="contact-name">${escapeHtml(p.displayName)} <span class="uname">@${escapeHtml(p.username)}</span></div>
+            <div class="contact-preview ${unread ? 'unread' : ''}">${escapeHtml(preview)}</div>
+          </div>
+          ${unread ? '<div class="unread-dot"></div>' : ''}
+        </div>
+      `;
+    });
+  }
+
+  listsEl.innerHTML = html;
+
+  listsEl.querySelectorAll('[data-open]').forEach(el => {
+    el.addEventListener('click', () => {
+      const uid = el.getAttribute('data-open');
+      const p = profileCache.get(uid);
+      openChat(uid, p);
+    });
+  });
+  listsEl.querySelectorAll('[data-accept]').forEach(el => {
+    el.addEventListener('click', () => respondToRequest(el.getAttribute('data-accept'), true));
+  });
+  listsEl.querySelectorAll('[data-decline]').forEach(el => {
+    el.addEventListener('click', () => respondToRequest(el.getAttribute('data-decline'), false));
+  });
+}
+
+// ---------- Chat ----------
+function openChat(peerUid, peerProfile){
+  activePeerUid = peerUid;
+  activeChatId = chatIdFor(currentUser.uid, peerUid);
+  lastOpened.set(activeChatId, Date.now());
+  unreadCounts.set(activeChatId, 0);
+  renderLists();
+  renderChatShell(peerUid, peerProfile || profileCache.get(peerUid) || {});
   appEl.classList.add('chat-open');
 
   if(unsubMessages) unsubMessages();
@@ -641,18 +1095,21 @@ function openChat(peer){
     const msgs = [];
     snapshot.forEach(d => msgs.push(d.data()));
     renderMessages(msgs);
+    lastOpened.set(activeChatId, Date.now());
+    unreadCounts.set(activeChatId, 0);
   });
 }
 
-function renderChatShell(peer){
+function renderChatShell(peerUid, peer){
   mainPanel.innerHTML = `
     <div class="chat-head">
       <button class="back-btn" id="backBtn" aria-label="Back to contacts">←</button>
-      <div class="avatar">${initialsFor(peer.email)}</div>
+      <div class="avatar">${initialsFor(peer.displayName)}</div>
       <div class="chat-head-info">
-        <div class="name">${escapeHtml(peer.email)}</div>
-        <div class="status">LIVE LINE</div>
+        <div class="name">${escapeHtml(peer.displayName)}</div>
+        <div class="status">@${escapeHtml(peer.username)}</div>
       </div>
+      <button class="remove-friend-btn" id="removeFriendBtn">REMOVE</button>
     </div>
     <div class="messages" id="messagesEl"></div>
     <div class="composer">
@@ -661,6 +1118,7 @@ function renderChatShell(peer){
     </div>
   `;
   document.getElementById('backBtn').addEventListener('click', () => appEl.classList.remove('chat-open'));
+  document.getElementById('removeFriendBtn').addEventListener('click', () => removeFriend(peerUid));
 
   const input = document.getElementById('composerInput');
   const sendBtn = document.getElementById('sendBtn');
