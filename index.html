@@ -438,6 +438,22 @@
     color: var(--brass-dim);
     margin: 18px 0 12px;
   }
+  .history-marker{
+    text-align:center;
+    font-family: var(--font-display);
+    font-size: 9.5px;
+    letter-spacing: 1.5px;
+    color: rgba(20,28,36,0.35);
+    padding: 10px 0 20px;
+  }
+  .loading-more{
+    text-align:center;
+    font-family: var(--font-display);
+    font-size: 9.5px;
+    letter-spacing: 1.5px;
+    color: var(--brass-dim);
+    padding: 10px 0;
+  }
 
   .msg-row{ display:flex; margin: 6px 0; animation: rise 0.28s ease both; }
   @keyframes rise{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform: translateY(0); } }
@@ -641,6 +657,11 @@ let myProfile = null; // {displayName, username, email}
 let activeChatId = null;
 let activePeerUid = null;
 let unsubMessages = null;
+const PAGE_SIZE = 30;
+let recentMessages = [];   // live window from the realtime listener (ascending)
+let olderMessages = [];    // paginated-in history, older than the live window (ascending)
+let hasMoreOlder = true;
+let loadingOlder = false;
 let unsubFriendships = null;
 const profileCache = new Map(); // uid -> {displayName, username, email}
 const chatUnsubs = new Map(); // chatId -> unsub for last-message listener
@@ -1088,16 +1109,66 @@ function openChat(peerUid, peerProfile){
   renderChatShell(peerUid, peerProfile || profileCache.get(peerUid) || {});
   appEl.classList.add('chat-open');
 
+  recentMessages = [];
+  olderMessages = [];
+  hasMoreOlder = true;
+  loadingOlder = false;
+
   if(unsubMessages) unsubMessages();
+  const oldWrap = document.getElementById('messagesEl');
+  if(oldWrap) oldWrap.removeEventListener('scroll', onMessagesScroll);
   const msgsRef = collection(db, 'chats', activeChatId, 'messages');
-  const q = query(msgsRef, orderBy('t', 'asc'));
+  // Live window: most recent PAGE_SIZE messages, kept in sync in realtime.
+  const q = query(msgsRef, orderBy('t', 'desc'), limit(PAGE_SIZE));
+  let firstLoad = true;
   unsubMessages = onSnapshot(q, (snapshot) => {
     const msgs = [];
     snapshot.forEach(d => msgs.push(d.data()));
-    renderMessages(msgs);
+    msgs.reverse(); // ascending
+    recentMessages = msgs;
+    // If this window came back shorter than a full page, there's nothing older to load.
+    if(firstLoad && msgs.length < PAGE_SIZE){ hasMoreOlder = false; }
+    firstLoad = false;
+    renderMessages({ preserveScroll: false });
     lastOpened.set(activeChatId, Date.now());
     unreadCounts.set(activeChatId, 0);
   });
+
+  const wrap = document.getElementById('messagesEl');
+  if(wrap){
+    wrap.addEventListener('scroll', onMessagesScroll);
+  }
+}
+
+function onMessagesScroll(e){
+  const wrap = e.target;
+  if(wrap.scrollTop < 60 && hasMoreOlder && !loadingOlder){
+    loadOlderMessages();
+  }
+}
+
+async function loadOlderMessages(){
+  const combined = olderMessages.concat(recentMessages);
+  if(combined.length === 0){ return; }
+  const oldestTs = combined[0].t;
+  loadingOlder = true;
+  renderMessages({ preserveScroll: true, showLoading: true });
+
+  try{
+    const msgsRef = collection(db, 'chats', activeChatId, 'messages');
+    const q = query(msgsRef, orderBy('t', 'desc'), where('t', '<', oldestTs), limit(PAGE_SIZE));
+    const snap = await getDocs(q);
+    const batch = [];
+    snap.forEach(d => batch.push(d.data()));
+    batch.reverse(); // ascending
+    if(batch.length < PAGE_SIZE){ hasMoreOlder = false; }
+    olderMessages = batch.concat(olderMessages);
+  } catch(err){
+    hasMoreOlder = false;
+  } finally {
+    loadingOlder = false;
+    renderMessages({ preserveScroll: true, showLoading: false });
+  }
 }
 
 function renderChatShell(peerUid, peer){
@@ -1154,10 +1225,30 @@ function renderChatShell(peerUid, peer){
   }
 }
 
-function renderMessages(msgs){
+function renderMessages(opts){
+  opts = opts || {};
   const wrap = document.getElementById('messagesEl');
   if(!wrap) return;
+
+  const prevScrollHeight = wrap.scrollHeight;
+  const prevScrollTop = wrap.scrollTop;
+
+  const msgs = olderMessages.concat(recentMessages);
+
   wrap.innerHTML = '';
+
+  if(opts.showLoading){
+    const loading = document.createElement('div');
+    loading.className = 'loading-more';
+    loading.textContent = 'LOADING EARLIER MESSAGES…';
+    wrap.appendChild(loading);
+  } else if(!hasMoreOlder && msgs.length > 0){
+    const marker = document.createElement('div');
+    marker.className = 'history-marker';
+    marker.textContent = '— BEGINNING OF CONVERSATION —';
+    wrap.appendChild(marker);
+  }
+
   let lastDay = null;
   msgs.forEach(m => {
     const dayLabel = fmtDayLabel(m.t);
@@ -1179,7 +1270,13 @@ function renderMessages(msgs){
     `;
     wrap.appendChild(row);
   });
-  wrap.scrollTop = wrap.scrollHeight;
+
+  if(opts.preserveScroll){
+    // Keep the user's eye on the same message after older ones are prepended above it.
+    wrap.scrollTop = wrap.scrollHeight - prevScrollHeight + prevScrollTop;
+  } else {
+    wrap.scrollTop = wrap.scrollHeight;
+  }
 }
 </script>
 
