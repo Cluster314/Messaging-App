@@ -711,6 +711,18 @@
   .status-option-text{ font-size: 13px; color: var(--paper); }
   .status-option-desc{ font-size: 11px; color: rgba(239,232,216,0.4); margin-top:1px; }
 
+  @media (min-width: 1440px){
+    .app{ max-width: 1600px; grid-template-columns: 360px 1fr; }
+    .messages{ padding-left: 60px; padding-right: 60px; }
+    .bubble{ max-width: 52%; }
+  }
+
+  @media (min-width: 1920px){
+    .app{ max-width: 1900px; grid-template-columns: 400px 1fr; }
+    .messages{ padding-left: 100px; padding-right: 100px; }
+    .bubble{ max-width: 46%; }
+  }
+
   @media (max-width: 760px){
     .app{ grid-template-columns: 1fr; max-width:none; }
     .sidebar{ position: fixed; inset: 0; z-index: 5; transition: transform .25s ease; width:100%; }
