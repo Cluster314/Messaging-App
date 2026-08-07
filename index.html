@@ -922,11 +922,36 @@ let lastInteractionTime = Date.now();
   document.addEventListener(evt, () => { lastInteractionTime = Date.now(); }, { passive: true });
 });
 
+let cachedIdToken = null;
+
 async function sendHeartbeat(){
   if(!currentUser) return;
-  try{ await updateDoc(doc(db, 'users', currentUser.uid), { lastActive: lastInteractionTime }); }
+  try{
+    cachedIdToken = await currentUser.getIdToken();
+    await updateDoc(doc(db, 'users', currentUser.uid), { lastActive: lastInteractionTime });
+  }
   catch(e){}
 }
+
+// Normal Firestore writes can get cancelled mid-flight when a tab actually closes,
+// so on real close/navigate-away we fire a raw REST call with keepalive, which
+// browsers let finish even after the page starts unloading. This is what makes
+// "closed the app" show up as offline immediately instead of after the idle timeout.
+function sendOfflineBeacon(){
+  if(!currentUser || !cachedIdToken) return;
+  const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${currentUser.uid}?updateMask.fieldPaths=lastActive`;
+  const body = JSON.stringify({ fields: { lastActive: { integerValue: "0" } } });
+  try{
+    fetch(url, {
+      method: 'PATCH',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cachedIdToken },
+      body
+    });
+  } catch(e){}
+}
+window.addEventListener('pagehide', sendOfflineBeacon);
+window.addEventListener('beforeunload', sendOfflineBeacon);
 
 async function setPresenceMode(mode){
   if(!currentUser) return;
@@ -1384,6 +1409,7 @@ function cleanupSubscriptions(){
   lastMessages.clear();
   activeChatId = null;
   activePeerUid = null;
+  cachedIdToken = null;
 }
 
 // ---------- Helpers ----------
