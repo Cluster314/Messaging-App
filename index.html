@@ -1918,41 +1918,80 @@ function renderMessages(opts){
   const prevScrollTop = wrap.scrollTop;
 
   const msgs = olderMessages.concat(recentMessages);
+  const GROUP_GAP_MS = 5 * 60 * 1000;
 
   wrap.innerHTML = '';
 
   if(opts.showLoading){
     const loading = document.createElement('div');
     loading.className = 'loading-more';
-    loading.textContent = 'LOADING EARLIER MESSAGES…';
+    loading.textContent = 'Loading earlier messages…';
     wrap.appendChild(loading);
   } else if(!hasMoreOlder && msgs.length > 0){
     const marker = document.createElement('div');
     marker.className = 'history-marker';
-    marker.textContent = '— BEGINNING OF CONVERSATION —';
+    marker.textContent = '— Beginning of conversation —';
     wrap.appendChild(marker);
   }
 
+  const peer = profileCache.get(activePeerUid) || {};
+
   let lastDay = null;
+  let lastSender = null;
+  let lastTs = 0;
+
   msgs.forEach(m => {
     const dayLabel = fmtDayLabel(m.t);
     if(dayLabel !== lastDay){
       const div = document.createElement('div');
       div.className = 'day-divider';
-      div.textContent = dayLabel;
+      div.innerHTML = `<span>${escapeHtml(dayLabel)}</span>`;
       wrap.appendChild(div);
       lastDay = dayLabel;
+      lastSender = null; // force a fresh group header after a day break
     }
+
     const mine = m.from === currentUser.uid;
-    const row = document.createElement('div');
-    row.className = 'msg-row ' + (mine ? 'out' : 'in');
-    row.innerHTML = `
-      <div class="bubble">
-        ${escapeHtml(m.text)}
-        <span class="msg-time">${fmtTime(m.t)}</span>
-      </div>
-    `;
-    wrap.appendChild(row);
+    const sameSenderAsBefore = m.from === lastSender;
+    const withinGroupWindow = (m.t - lastTs) < GROUP_GAP_MS;
+    const isContinuation = sameSenderAsBefore && withinGroupWindow;
+
+    if(isContinuation){
+      const row = document.createElement('div');
+      row.className = 'msg-continuation';
+      row.innerHTML = `
+        <span class="cont-time">${fmtTime(m.t)}</span>
+        <div class="msg-text">${escapeHtml(m.text)}</div>
+      `;
+      wrap.appendChild(row);
+    } else {
+      const senderProfile = mine ? myProfile : peer;
+      const row = document.createElement('div');
+      row.className = 'msg-group';
+      row.innerHTML = `
+        ${avatarHtml(senderProfile)}
+        <div class="msg-body">
+          <div class="msg-header">
+            <span class="msg-author ${mine ? 'self' : ''}">${escapeHtml(senderProfile.displayName || '')}</span>
+            <span class="msg-time">${fmtTime(m.t)}</span>
+          </div>
+          <div class="msg-text">${escapeHtml(m.text)}</div>
+        </div>
+      `;
+      wrap.appendChild(row);
+      const avatarEl = row.querySelector('.avatar');
+      if(avatarEl){
+        avatarEl.style.cursor = 'pointer';
+        avatarEl.addEventListener('click', () => openProfileModal(mine ? currentUser.uid : activePeerUid, senderProfile));
+      }
+      const authorEl = row.querySelector('.msg-author');
+      if(authorEl){
+        authorEl.addEventListener('click', () => openProfileModal(mine ? currentUser.uid : activePeerUid, senderProfile));
+      }
+    }
+
+    lastSender = m.from;
+    lastTs = m.t;
   });
 
   if(opts.preserveScroll){
