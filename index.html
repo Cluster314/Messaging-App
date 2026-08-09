@@ -834,6 +834,105 @@
   }
   .modal-btn-danger:hover{ background: var(--rust); color: #fff; }
 
+  /* ---------- Message actions ---------- */
+  .msg-group{ position:relative; }
+  .msg-continuation{ position:relative; }
+  .msg-actions{
+    display:none;
+    position:absolute;
+    top:-14px; right: 48px;
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow:hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    z-index: 2;
+  }
+  .msg-group:hover .msg-actions,
+  .msg-continuation:hover .msg-actions{ display:flex; }
+  .msg-action-btn{
+    background:none;
+    border:none;
+    color: var(--paper-2);
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight:600;
+    padding: 7px 10px;
+    cursor:pointer;
+    border-right: 1px solid var(--line);
+  }
+  .msg-action-btn:last-child{ border-right:none; }
+  .msg-action-btn:hover{ background: var(--ink-3); color: var(--paper); }
+  .msg-action-btn.danger:hover{ color: var(--rust); }
+
+  .reply-quote{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size: 12.5px;
+    color: var(--paper-2);
+    margin-bottom: 3px;
+    padding-left: 12px;
+    border-left: 2px solid var(--brass-dim);
+    cursor:pointer;
+    max-width: 90%;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+  }
+  .reply-quote:hover{ color: var(--paper); }
+  .reply-quote .reply-quote-name{ color: var(--brass); font-weight:600; }
+
+  .msg-edited-tag{ font-size: 10px; color: var(--paper-2); margin-left:4px; }
+  .msg-deleted{ font-style: italic; color: rgba(219,222,225,0.35); }
+  .msg-forward-tag{
+    font-size: 11px;
+    color: var(--paper-2);
+    font-style: italic;
+    margin-bottom: 2px;
+  }
+  .msg-highlight{ animation: highlight-flash 1.4s ease; }
+  @keyframes highlight-flash{
+    0%{ background: rgba(64,191,255,0.18); }
+    100%{ background: transparent; }
+  }
+
+  .composer-mode-banner{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 10px;
+    background: var(--ink-2);
+    border-radius: 8px 8px 0 0;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    color: var(--paper-2);
+    margin-bottom: -8px;
+  }
+  .composer-mode-banner .cmb-text{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .composer-mode-banner .cmb-text b{ color: var(--brass); }
+  .composer-mode-banner button{
+    background:none; border:none;
+    color: var(--paper-2);
+    cursor:pointer;
+    font-size: 13px;
+    flex-shrink:0;
+  }
+  .composer-mode-banner button:hover{ color: var(--paper); }
+
+  /* ---------- Forward modal ---------- */
+  .forward-target-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 9px 11px;
+    border-bottom: 1px solid var(--line);
+    cursor:pointer;
+    text-align:left;
+  }
+  .forward-target-row:last-child{ border-bottom:none; }
+  .forward-target-row:hover{ background: var(--ink-3); }
+
   @media (min-width: 1440px){
     .app{ max-width: 1600px; grid-template-columns: 360px 1fr; }
     .msg-group{ padding-left: 60px; padding-right: 90px; }
@@ -868,6 +967,10 @@
 
 <div class="modal-overlay" id="groupInfoModalOverlay">
   <div class="modal-card" id="groupInfoModalCard"></div>
+</div>
+
+<div class="modal-overlay" id="forwardModalOverlay">
+  <div class="modal-card" id="forwardModalCard"></div>
 </div>
 
 <div class="auth-screen" id="authScreen">
@@ -1702,6 +1805,91 @@ function renderGroupInfoModal(){
   });
 }
 
+// ---------- Forward modal ----------
+const forwardModalOverlay = document.getElementById('forwardModalOverlay');
+const forwardModalCard = document.getElementById('forwardModalCard');
+let forwardingMessage = null;
+let forwardingSenderProfile = null;
+
+function openForwardModal(message, senderProfile){
+  forwardingMessage = message;
+  forwardingSenderProfile = senderProfile;
+  renderForwardModal();
+  forwardModalOverlay.classList.add('visible');
+}
+forwardModalOverlay.addEventListener('click', (e) => {
+  if(e.target === forwardModalOverlay) forwardModalOverlay.classList.remove('visible');
+});
+
+function renderForwardModal(){
+  const friends = friendshipsData.filter(f => f.status === 'accepted');
+  let rowsHtml = '';
+
+  friends.forEach(f => {
+    const uid = f.users.find(u => u !== currentUser.uid);
+    const p = profileCache.get(uid) || {};
+    rowsHtml += `
+      <div class="forward-target-row" data-fwd-dm="${uid}">
+        ${avatarHtml(p)}
+        <div>
+          <div class="picker-name">${escapeHtml(p.displayName || '')}</div>
+          <div class="picker-uname">@${escapeHtml(p.username || '')}</div>
+        </div>
+      </div>
+    `;
+  });
+  groupsData.forEach(g => {
+    rowsHtml += `
+      <div class="forward-target-row" data-fwd-group="${g.id}">
+        ${groupAvatarHtml(g)}
+        <div>
+          <div class="picker-name">${escapeHtml(g.name || 'Group')}</div>
+          <div class="picker-uname">${(g.members || []).length} members</div>
+        </div>
+      </div>
+    `;
+  });
+
+  if(!rowsHtml){
+    rowsHtml = `<div class="picker-empty">No friends or groups to forward to yet.</div>`;
+  }
+
+  forwardModalCard.innerHTML = `
+    <button class="modal-close" id="forwardCloseBtn">✕</button>
+    <div class="modal-name" style="margin-bottom:2px;">Forward Message</div>
+    <div class="modal-section" style="margin-top:14px;">
+      <div class="modal-section-label">SEND TO</div>
+      <div class="picker-list">${rowsHtml}</div>
+    </div>
+  `;
+
+  document.getElementById('forwardCloseBtn').addEventListener('click', () => forwardModalOverlay.classList.remove('visible'));
+  forwardModalCard.querySelectorAll('[data-fwd-dm]').forEach(el => {
+    el.addEventListener('click', () => forwardTo('dm', el.getAttribute('data-fwd-dm')));
+  });
+  forwardModalCard.querySelectorAll('[data-fwd-group]').forEach(el => {
+    el.addEventListener('click', () => forwardTo('group', el.getAttribute('data-fwd-group')));
+  });
+}
+
+async function forwardTo(kind, targetId){
+  if(!forwardingMessage) return;
+  const chatId = kind === 'group' ? targetId : chatIdFor(currentUser.uid, targetId);
+  const senderName = forwardingSenderProfile ? forwardingSenderProfile.displayName : 'someone';
+  try{
+    await addDoc(messagesCollRef(kind === 'group' ? 'group' : 'dm', chatId), {
+      from: currentUser.uid,
+      text: forwardingMessage.text,
+      t: Date.now(),
+      forwardedFrom: senderName
+    });
+    forwardModalOverlay.classList.remove('visible');
+    showToast('Forwarded', 'Message sent.');
+  } catch(err){
+    showToast('Could not forward', 'Please try again.');
+  }
+}
+
 completeForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   completeError.style.display = 'none';
@@ -1983,7 +2171,7 @@ function subscribeLastMessage(chatId, peerUid){
   const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('t', 'desc'), limit(1));
   const unsub = onSnapshot(q, (snapshot) => {
     if(snapshot.empty){ isInitial = false; return; }
-    const m = snapshot.docs[0].data();
+    const m = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
     lastMessages.set(chatId, m);
 
     const isNewIncoming = m.from !== currentUser.uid && m.t > (lastOpened.get(chatId) || 0);
@@ -2044,7 +2232,7 @@ function subscribeGroupLastMessage(groupId){
   const q = query(collection(db, 'groups', groupId, 'messages'), orderBy('t', 'desc'), limit(1));
   const unsub = onSnapshot(q, (snapshot) => {
     if(snapshot.empty){ isInitial = false; return; }
-    const m = snapshot.docs[0].data();
+    const m = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
     lastMessages.set(groupId, m);
 
     const isNewIncoming = m.from !== currentUser.uid && m.t > (lastOpened.get(groupId) || 0);
@@ -2248,7 +2436,7 @@ function beginMessageStream(){
   let firstLoad = true;
   unsubMessages = onSnapshot(q, (snapshot) => {
     const msgs = [];
-    snapshot.forEach(d => msgs.push(d.data()));
+    snapshot.forEach(d => msgs.push({ id: d.id, ...d.data() }));
     msgs.reverse(); // ascending
     recentMessages = msgs;
     // If this window came back shorter than a full page, there's nothing older to load.
@@ -2284,7 +2472,7 @@ async function loadOlderMessages(){
     const q = query(msgsRef, orderBy('t', 'desc'), where('t', '<', oldestTs), limit(PAGE_SIZE));
     const snap = await getDocs(q);
     const batch = [];
-    snap.forEach(d => batch.push(d.data()));
+    snap.forEach(d => batch.push({ id: d.id, ...d.data() }));
     batch.reverse(); // ascending
     if(batch.length < PAGE_SIZE){ hasMoreOlder = false; }
     olderMessages = batch.concat(olderMessages);
@@ -2309,6 +2497,7 @@ function renderChatShell(peerUid, peer){
     </div>
     <div class="messages" id="messagesEl"></div>
     <div class="composer">
+      <div id="composerBannerSlot"></div>
       <div class="composer-bar">
         <textarea id="composerInput" placeholder="Message @${escapeHtml(peer.username)}" rows="1"></textarea>
         <button class="send-btn" id="sendBtn" disabled>SEND</button>
@@ -2324,10 +2513,66 @@ function renderChatShell(peerUid, peer){
   wireComposer();
 }
 
+let composerMode = null; // null | {type:'reply', msg, senderName} | {type:'edit', msg}
+
+function setComposerMode(mode){
+  composerMode = mode;
+  renderComposerBanner();
+  const input = document.getElementById('composerInput');
+  const sendBtn = document.getElementById('sendBtn');
+  if(input){
+    if(mode && mode.type === 'edit'){
+      input.value = mode.msg.text;
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      if(sendBtn) sendBtn.disabled = input.value.trim().length === 0;
+    }
+    input.focus();
+  }
+}
+
+function clearComposerMode(){
+  const wasEdit = composerMode && composerMode.type === 'edit';
+  composerMode = null;
+  renderComposerBanner();
+  if(wasEdit){
+    const input = document.getElementById('composerInput');
+    const sendBtn = document.getElementById('sendBtn');
+    if(input){ input.value = ''; input.style.height = 'auto'; }
+    if(sendBtn) sendBtn.disabled = true;
+  }
+}
+
+function renderComposerBanner(){
+  const slot = document.getElementById('composerBannerSlot');
+  if(!slot) return;
+  if(!composerMode){ slot.innerHTML = ''; return; }
+  if(composerMode.type === 'reply'){
+    slot.innerHTML = `
+      <div class="composer-mode-banner">
+        <div class="cmb-text">Replying to <b>${escapeHtml(composerMode.senderName)}</b>: ${escapeHtml((composerMode.msg.text || '').slice(0, 60))}</div>
+        <button id="cancelComposerModeBtn">✕</button>
+      </div>
+    `;
+  } else if(composerMode.type === 'edit'){
+    slot.innerHTML = `
+      <div class="composer-mode-banner">
+        <div class="cmb-text">Editing message</div>
+        <button id="cancelComposerModeBtn">✕</button>
+      </div>
+    `;
+  }
+  const cancelBtn = document.getElementById('cancelComposerModeBtn');
+  if(cancelBtn) cancelBtn.addEventListener('click', clearComposerMode);
+}
+
 function wireComposer(){
   const input = document.getElementById('composerInput');
   const sendBtn = document.getElementById('sendBtn');
   if(!input || !sendBtn) return;
+
+  composerMode = null;
+  renderComposerBanner();
 
   input.addEventListener('input', () => {
     sendBtn.disabled = input.value.trim().length === 0;
@@ -2339,21 +2584,44 @@ function wireComposer(){
       e.preventDefault();
       trySend();
     }
+    if(e.key === 'Escape' && composerMode){
+      clearComposerMode();
+    }
   });
   sendBtn.addEventListener('click', trySend);
 
   async function trySend(){
     const text = input.value.trim();
     if(!text || !activeChatId) return;
+
+    if(composerMode && composerMode.type === 'edit'){
+      const msgId = composerMode.msg.id;
+      clearComposerMode();
+      input.value = '';
+      input.style.height = 'auto';
+      sendBtn.disabled = true;
+      await editMessageText(msgId, text);
+      return;
+    }
+
+    const payload = {
+      from: currentUser.uid,
+      text: text,
+      t: Date.now()
+    };
+    if(composerMode && composerMode.type === 'reply'){
+      payload.replyTo = {
+        id: composerMode.msg.id || '',
+        text: (composerMode.msg.text || '').slice(0, 120),
+        senderName: composerMode.senderName || ''
+      };
+    }
+    clearComposerMode();
     input.value = '';
     input.style.height = 'auto';
     sendBtn.disabled = true;
     try{
-      await addDoc(messagesCollRef(activeChatKind, activeChatId), {
-        from: currentUser.uid,
-        text: text,
-        t: Date.now()
-      });
+      await addDoc(messagesCollRef(activeChatKind, activeChatId), payload);
     } catch(err){
       alert('Message failed to send: ' + err.message);
     }
@@ -2385,6 +2653,7 @@ function renderGroupChatShell(groupId, group){
     </div>
     <div class="messages" id="messagesEl"></div>
     <div class="composer">
+      <div id="composerBannerSlot"></div>
       <div class="composer-bar">
         <textarea id="composerInput" placeholder="Message #${escapeHtml(group.name || 'group')}" rows="1"></textarea>
         <button class="send-btn" id="sendBtn" disabled>SEND</button>
@@ -2443,19 +2712,28 @@ function renderMessages(opts){
     const senderProfile = mine ? myProfile : (profileCache.get(m.from) || { displayName: 'Unknown', username: '' });
     const sameSenderAsBefore = m.from === lastSender;
     const withinGroupWindow = (m.t - lastTs) < GROUP_GAP_MS;
-    const isContinuation = sameSenderAsBefore && withinGroupWindow;
+    // A reply or a forwarded message always starts its own group, even from the same sender,
+    // so the extra context (quote / "Forwarded" tag) doesn't get visually swallowed.
+    const isContinuation = sameSenderAsBefore && withinGroupWindow && !m.replyTo && !m.forwardedFrom;
+
+    const bodyHtml = messageBodyHtml(m);
+    const actionsHtml = messageActionsHtml(m, mine);
 
     if(isContinuation){
       const row = document.createElement('div');
       row.className = 'msg-continuation';
+      row.setAttribute('data-msg-id', m.id || '');
       row.innerHTML = `
         <span class="cont-time">${fmtTime(m.t)}</span>
-        <div class="msg-text">${escapeHtml(m.text)}</div>
+        <div style="flex:1;">${bodyHtml}</div>
+        ${actionsHtml}
       `;
       wrap.appendChild(row);
+      wireMessageRow(row, m, mine, senderProfile);
     } else {
       const row = document.createElement('div');
       row.className = 'msg-group';
+      row.setAttribute('data-msg-id', m.id || '');
       row.innerHTML = `
         ${avatarHtml(senderProfile)}
         <div class="msg-body">
@@ -2463,8 +2741,9 @@ function renderMessages(opts){
             <span class="msg-author ${mine ? 'self' : ''}">${escapeHtml(senderProfile.displayName || '')}</span>
             <span class="msg-time">${fmtTime(m.t)}</span>
           </div>
-          <div class="msg-text">${escapeHtml(m.text)}</div>
+          ${bodyHtml}
         </div>
+        ${actionsHtml}
       `;
       wrap.appendChild(row);
       const avatarEl = row.querySelector('.avatar');
@@ -2476,6 +2755,7 @@ function renderMessages(opts){
       if(authorEl){
         authorEl.addEventListener('click', () => openProfileModal(m.from, senderProfile));
       }
+      wireMessageRow(row, m, mine, senderProfile);
     }
 
     lastSender = m.from;
@@ -2487,6 +2767,102 @@ function renderMessages(opts){
     wrap.scrollTop = wrap.scrollHeight - prevScrollHeight + prevScrollTop;
   } else {
     wrap.scrollTop = wrap.scrollHeight;
+  }
+}
+
+function messageBodyHtml(m){
+  if(m.deleted){
+    return `<div class="msg-text msg-deleted">Message deleted</div>`;
+  }
+  let html = '';
+  if(m.forwardedFrom){
+    html += `<div class="msg-forward-tag">↪ Forwarded from ${escapeHtml(m.forwardedFrom)}</div>`;
+  }
+  if(m.replyTo){
+    html += `<div class="reply-quote" data-jump-to="${escapeHtml(m.replyTo.id || '')}">
+      <span class="reply-quote-name">${escapeHtml(m.replyTo.senderName || '')}</span>
+      <span>${escapeHtml((m.replyTo.text || '').slice(0, 80))}</span>
+    </div>`;
+  }
+  html += `<div class="msg-text">${escapeHtml(m.text)}${m.edited ? '<span class="msg-edited-tag">(edited)</span>' : ''}</div>`;
+  return html;
+}
+
+function messageActionsHtml(m, mine){
+  if(m.deleted) return '';
+  let btns = `<button class="msg-action-btn" data-action="reply">REPLY</button>`;
+  btns += `<button class="msg-action-btn" data-action="copy">COPY</button>`;
+  btns += `<button class="msg-action-btn" data-action="forward">FORWARD</button>`;
+  if(mine){
+    btns += `<button class="msg-action-btn" data-action="edit">EDIT</button>`;
+    btns += `<button class="msg-action-btn danger" data-action="delete">DELETE</button>`;
+  }
+  return `<div class="msg-actions">${btns}</div>`;
+}
+
+function wireMessageRow(row, m, mine, senderProfile){
+  const jumpEl = row.querySelector('[data-jump-to]');
+  if(jumpEl){
+    jumpEl.addEventListener('click', () => jumpToMessage(jumpEl.getAttribute('data-jump-to')));
+  }
+  row.querySelectorAll('.msg-action-btn').forEach(btn => {
+    btn.addEventListener('click', () => handleMessageAction(btn.getAttribute('data-action'), m, senderProfile));
+  });
+}
+
+function jumpToMessage(msgId){
+  if(!msgId) return;
+  const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+  if(el){
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('msg-highlight');
+    setTimeout(() => el.classList.remove('msg-highlight'), 1400);
+  } else {
+    showToast('Not loaded', 'Scroll up to load that part of the conversation.');
+  }
+}
+
+function handleMessageAction(action, m, senderProfile){
+  if(action === 'reply'){
+    setComposerMode({ type: 'reply', msg: m, senderName: senderProfile.displayName || '' });
+  } else if(action === 'copy'){
+    copyMessageText(m.text);
+  } else if(action === 'forward'){
+    openForwardModal(m, senderProfile);
+  } else if(action === 'edit'){
+    setComposerMode({ type: 'edit', msg: m });
+  } else if(action === 'delete'){
+    if(confirm('Delete this message? This cannot be undone.')){
+      softDeleteMessage(m.id);
+    }
+  }
+}
+
+function copyMessageText(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('Copied', 'Message copied to clipboard.'))
+      .catch(() => showToast('Copy failed', 'Could not copy the message.'));
+  } else {
+    showToast('Copy unavailable', 'Clipboard access isn\u2019t available here.');
+  }
+}
+
+async function softDeleteMessage(msgId){
+  if(!msgId || !activeChatId) return;
+  try{
+    await updateDoc(doc(messagesCollRef(activeChatKind, activeChatId), msgId), { deleted: true, text: '' });
+  } catch(err){
+    showToast('Could not delete', 'Please try again.');
+  }
+}
+
+async function editMessageText(msgId, newText){
+  if(!msgId || !activeChatId) return;
+  try{
+    await updateDoc(doc(messagesCollRef(activeChatKind, activeChatId), msgId), { text: newText, edited: true });
+  } catch(err){
+    showToast('Could not save edit', 'Please try again.');
   }
 }
 </script>
