@@ -741,6 +741,99 @@
   .status-option-text{ font-size: 13px; color: var(--paper); }
   .status-option-desc{ font-size: 11px; color: rgba(219,222,225,0.4); margin-top:1px; }
 
+  /* ---------- Groups ---------- */
+  .new-group-btn{
+    width: 100%;
+    background: var(--ink-3);
+    border: 1px dashed var(--line);
+    color: var(--paper-2);
+    font-family: var(--font-display);
+    font-size: 12.5px;
+    font-weight:600;
+    padding: 9px 12px;
+    border-radius: 6px;
+    cursor:pointer;
+    margin-top: 8px;
+    text-align:left;
+  }
+  .new-group-btn:hover{ border-color: var(--brass); color: var(--brass); }
+
+  .group-avatar-stack{
+    position: relative;
+    width: 38px; height:38px;
+    flex-shrink:0;
+  }
+  .group-avatar-stack .avatar{ width:38px; height:38px; }
+
+  .picker-list{
+    max-height: 260px;
+    overflow-y:auto;
+    margin: 4px 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .picker-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 9px 11px;
+    border-bottom: 1px solid var(--line);
+    cursor:pointer;
+    text-align:left;
+  }
+  .picker-row:last-child{ border-bottom:none; }
+  .picker-row:hover{ background: var(--ink-3); }
+  .picker-row.checked{ background: rgba(64,191,255,0.1); }
+  .picker-checkbox{
+    width:16px; height:16px;
+    border-radius:4px;
+    border: 1.5px solid var(--line);
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  .picker-row.checked .picker-checkbox{ background: var(--brass); border-color: var(--brass); }
+  .picker-name{ font-size: 13.5px; color: var(--paper); text-align:left; }
+  .picker-uname{ font-family: var(--font-display); font-size: 10px; color: var(--paper-2); text-align:left; }
+  .picker-empty{
+    padding: 20px;
+    text-align:center;
+    font-size: 12.5px;
+    color: var(--paper-2);
+  }
+
+  .member-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--line);
+    text-align:left;
+  }
+  .member-row:last-child{ border-bottom:none; }
+  .member-info{ flex:1; min-width:0; text-align:left; }
+  .member-name{ font-size:13.5px; color:var(--paper); }
+  .member-uname{ font-family: var(--font-display); font-size: 10px; color: var(--paper-2); }
+  .member-remove-btn{
+    background:none;
+    border:1px solid var(--line);
+    color: rgba(219,222,225,0.4);
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor:pointer;
+    font-family: var(--font-display);
+  }
+  .member-remove-btn:hover{ border-color: var(--rust); color: var(--rust); }
+  .modal-btn-danger{
+    background:none;
+    border: 1px solid var(--rust);
+    color: var(--rust);
+    margin-top: 8px;
+  }
+  .modal-btn-danger:hover{ background: var(--rust); color: #fff; }
+
   @media (min-width: 1440px){
     .app{ max-width: 1600px; grid-template-columns: 360px 1fr; }
     .msg-group{ padding-left: 60px; padding-right: 90px; }
@@ -767,6 +860,14 @@
 
 <div class="modal-overlay" id="profileModalOverlay">
   <div class="modal-card" id="profileModalCard"></div>
+</div>
+
+<div class="modal-overlay" id="newGroupModalOverlay">
+  <div class="modal-card" id="newGroupModalCard"></div>
+</div>
+
+<div class="modal-overlay" id="groupInfoModalOverlay">
+  <div class="modal-card" id="groupInfoModalCard"></div>
 </div>
 
 <div class="auth-screen" id="authScreen">
@@ -841,6 +942,7 @@
     <div class="search-wrap">
       <input type="text" id="searchInput" placeholder="Find people by @username…" autocomplete="off">
       <div class="search-results" id="searchResults"></div>
+      <button class="new-group-btn" id="newGroupBtn">+ New Group</button>
     </div>
     <div class="lists" id="lists"></div>
   </aside>
@@ -861,7 +963,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, setDoc, getDoc, deleteDoc, updateDoc, collection, query, orderBy,
-  onSnapshot, addDoc, getDocs, where, limit
+  onSnapshot, addDoc, getDocs, where, limit, arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -911,6 +1013,7 @@ let currentUser = null;
 let myProfile = null; // {displayName, username, email}
 let activeChatId = null;
 let activePeerUid = null;
+let activeChatKind = null; // 'dm' or 'group'
 let unsubMessages = null;
 const PAGE_SIZE = 30;
 let recentMessages = [];   // live window from the realtime listener (ascending)
@@ -918,13 +1021,17 @@ let olderMessages = [];    // paginated-in history, older than the live window (
 let hasMoreOlder = true;
 let loadingOlder = false;
 let unsubFriendships = null;
+let unsubGroups = null;
 const profileCache = new Map(); // uid -> {displayName, username, email, presenceMode, lastActive, photoURL}
 const chatUnsubs = new Map(); // chatId -> unsub for last-message listener
+const groupChatUnsubs = new Map(); // groupId -> unsub for last-message listener
 const presenceUnsubs = new Map(); // uid -> unsub for their profile doc (status changes)
-const lastOpened = new Map(); // chatId -> timestamp
-const unreadCounts = new Map(); // chatId -> count
-const lastMessages = new Map(); // chatId -> {text, from, t}
+const lastOpened = new Map(); // chatId/groupId -> timestamp
+const unreadCounts = new Map(); // chatId/groupId -> count
+const lastMessages = new Map(); // chatId/groupId -> {text, from, t}
 let friendshipsInitial = true;
+let groupsInitial = true;
+let groupsData = []; // raw group docs {id, name, members, createdBy, createdAt, photoURL}
 let heartbeatInterval = null;
 let presenceTickInterval = null;
 
@@ -1186,6 +1293,8 @@ function enterApp(){
   requestNotifyPermission();
   friendshipsInitial = true;
   subscribeFriendships();
+  groupsInitial = true;
+  subscribeGroups();
 
   sendHeartbeat();
   if(heartbeatInterval) clearInterval(heartbeatInterval);
@@ -1404,6 +1513,195 @@ function updateChatHeaderStatus(profile){
   }
 }
 
+// ---------- New Group modal ----------
+const newGroupModalOverlay = document.getElementById('newGroupModalOverlay');
+const newGroupModalCard = document.getElementById('newGroupModalCard');
+let selectedGroupMembers = new Set();
+
+document.getElementById('newGroupBtn').addEventListener('click', () => {
+  selectedGroupMembers = new Set();
+  renderNewGroupModal();
+  newGroupModalOverlay.classList.add('visible');
+});
+newGroupModalOverlay.addEventListener('click', (e) => {
+  if(e.target === newGroupModalOverlay) newGroupModalOverlay.classList.remove('visible');
+});
+
+function renderNewGroupModal(){
+  const accepted = friendshipsData.filter(f => f.status === 'accepted');
+  let pickerHtml = '';
+  if(accepted.length === 0){
+    pickerHtml = `<div class="picker-empty">Add some friends first — you'll need at least 2 to start a group.</div>`;
+  } else {
+    accepted.forEach(f => {
+      const uid = f.users.find(u => u !== currentUser.uid);
+      const p = profileCache.get(uid) || {};
+      const checked = selectedGroupMembers.has(uid);
+      pickerHtml += `
+        <div class="picker-row ${checked ? 'checked' : ''}" data-pick="${uid}">
+          <span class="picker-checkbox">${checked ? '✓' : ''}</span>
+          ${avatarHtml(p)}
+          <div>
+            <div class="picker-name">${escapeHtml(p.displayName || '')}</div>
+            <div class="picker-uname">@${escapeHtml(p.username || '')}</div>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  newGroupModalCard.innerHTML = `
+    <button class="modal-close" id="newGroupCloseBtn">✕</button>
+    <div class="modal-name" style="margin-bottom:2px;">New Group</div>
+    <div class="modal-section" style="margin-top:14px;">
+      <div class="modal-section-label">GROUP NAME</div>
+      <input class="modal-input" id="newGroupNameInput" placeholder="e.g. Weekend Trip" maxlength="60">
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">ADD FRIENDS (pick at least 2)</div>
+      <div class="picker-list">${pickerHtml}</div>
+      <button class="modal-btn" id="newGroupCreateBtn">CREATE GROUP</button>
+    </div>
+  `;
+
+  document.getElementById('newGroupCloseBtn').addEventListener('click', () => newGroupModalOverlay.classList.remove('visible'));
+  newGroupModalCard.querySelectorAll('[data-pick]').forEach(el => {
+    el.addEventListener('click', () => {
+      const uid = el.getAttribute('data-pick');
+      if(selectedGroupMembers.has(uid)) selectedGroupMembers.delete(uid);
+      else selectedGroupMembers.add(uid);
+      renderNewGroupModal();
+    });
+  });
+  document.getElementById('newGroupCreateBtn').addEventListener('click', async () => {
+    const name = document.getElementById('newGroupNameInput').value.trim();
+    if(!name){ showToast('Name required', 'Give your group a name.'); return; }
+    if(selectedGroupMembers.size < 2){ showToast('Add more people', 'Pick at least 2 friends for a group.'); return; }
+    try{
+      const group = await createGroup(name, [...selectedGroupMembers]);
+      newGroupModalOverlay.classList.remove('visible');
+      openGroupChat(group.id, group);
+    } catch(err){
+      showToast('Could not create group', 'Please try again.');
+    }
+  });
+}
+
+// ---------- Group Info modal ----------
+const groupInfoModalOverlay = document.getElementById('groupInfoModalOverlay');
+const groupInfoModalCard = document.getElementById('groupInfoModalCard');
+let groupInfoId = null;
+
+function openGroupInfoModal(groupId){
+  groupInfoId = groupId;
+  renderGroupInfoModal();
+  groupInfoModalOverlay.classList.add('visible');
+}
+groupInfoModalOverlay.addEventListener('click', (e) => {
+  if(e.target === groupInfoModalOverlay) groupInfoModalOverlay.classList.remove('visible');
+});
+
+function renderGroupInfoModal(){
+  const group = groupsData.find(g => g.id === groupInfoId);
+  if(!group){ groupInfoModalOverlay.classList.remove('visible'); return; }
+
+  const members = group.members || [];
+  let memberRows = '';
+  members.forEach(uid => {
+    const p = profileCache.get(uid) || {};
+    const isMe = uid === currentUser.uid;
+    memberRows += `
+      <div class="member-row">
+        ${avatarHtml(p)}
+        <div class="member-info">
+          <div class="member-name">${escapeHtml(p.displayName || '')}${isMe ? ' (you)' : ''}</div>
+          <div class="member-uname">@${escapeHtml(p.username || '')}</div>
+        </div>
+        ${!isMe ? `<button class="member-remove-btn" data-remove-member="${uid}">REMOVE</button>` : ''}
+      </div>
+    `;
+  });
+
+  const friendCandidates = friendshipsData
+    .filter(f => f.status === 'accepted')
+    .map(f => f.users.find(u => u !== currentUser.uid))
+    .filter(uid => !members.includes(uid));
+
+  let addOptionsHtml = '';
+  if(friendCandidates.length === 0){
+    addOptionsHtml = `<div class="picker-empty">All your friends are already in this group.</div>`;
+  } else {
+    friendCandidates.forEach(uid => {
+      const p = profileCache.get(uid) || {};
+      addOptionsHtml += `
+        <div class="picker-row" data-add-member="${uid}">
+          ${avatarHtml(p)}
+          <div>
+            <div class="picker-name">${escapeHtml(p.displayName || '')}</div>
+            <div class="picker-uname">@${escapeHtml(p.username || '')}</div>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  groupInfoModalCard.innerHTML = `
+    <button class="modal-close" id="groupInfoCloseBtn">✕</button>
+    <div class="modal-avatar-big">${groupAvatarHtml(group, 'modal-avatar-inner')}</div>
+    <div class="modal-section" style="margin-top:6px;">
+      <div class="modal-section-label">GROUP NAME</div>
+      <input class="modal-input" id="groupNameInput" value="${escapeHtml(group.name || '')}" maxlength="60">
+      <button class="modal-btn" id="groupRenameBtn">SAVE NAME</button>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">MEMBERS (${members.length})</div>
+      <div class="picker-list">${memberRows}</div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">ADD A FRIEND</div>
+      <div class="picker-list">${addOptionsHtml}</div>
+    </div>
+    <div class="modal-section">
+      <button class="modal-btn modal-btn-secondary modal-btn-danger" id="leaveGroupBtn">LEAVE GROUP</button>
+    </div>
+  `;
+
+  document.getElementById('groupInfoCloseBtn').addEventListener('click', () => groupInfoModalOverlay.classList.remove('visible'));
+  document.getElementById('groupRenameBtn').addEventListener('click', async () => {
+    const name = document.getElementById('groupNameInput').value.trim();
+    if(!name){ showToast('Name required', "Group name can't be empty."); return; }
+    try{
+      await renameGroup(groupInfoId, name);
+      showToast('Group renamed', 'The group name has been updated.');
+    } catch(err){
+      showToast('Could not rename', 'Please try again.');
+    }
+  });
+  groupInfoModalCard.querySelectorAll('[data-remove-member]').forEach(el => {
+    el.addEventListener('click', async () => {
+      const uid = el.getAttribute('data-remove-member');
+      try{ await removeGroupMember(groupInfoId, uid); renderGroupInfoModal(); }
+      catch(err){ showToast('Could not remove member', 'Please try again.'); }
+    });
+  });
+  groupInfoModalCard.querySelectorAll('[data-add-member]').forEach(el => {
+    el.addEventListener('click', async () => {
+      const uid = el.getAttribute('data-add-member');
+      try{ await addGroupMember(groupInfoId, uid); renderGroupInfoModal(); }
+      catch(err){ showToast('Could not add member', 'Please try again.'); }
+    });
+  });
+  document.getElementById('leaveGroupBtn').addEventListener('click', async () => {
+    if(!confirm('Leave this group? You can be re-added by another member later.')) return;
+    try{
+      await leaveGroup(groupInfoId);
+      groupInfoModalOverlay.classList.remove('visible');
+    } catch(err){
+      showToast('Could not leave group', 'Please try again.');
+    }
+  });
+}
+
 completeForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   completeError.style.display = 'none';
@@ -1440,8 +1738,11 @@ completeForm.addEventListener('submit', async (e) => {
 function cleanupSubscriptions(){
   if(unsubMessages) { unsubMessages(); unsubMessages = null; }
   if(unsubFriendships) { unsubFriendships(); unsubFriendships = null; }
+  if(unsubGroups) { unsubGroups(); unsubGroups = null; }
   chatUnsubs.forEach(fn => fn());
   chatUnsubs.clear();
+  groupChatUnsubs.forEach(fn => fn());
+  groupChatUnsubs.clear();
   presenceUnsubs.forEach(fn => fn());
   presenceUnsubs.clear();
   if(heartbeatInterval){ clearInterval(heartbeatInterval); heartbeatInterval = null; }
@@ -1449,8 +1750,10 @@ function cleanupSubscriptions(){
   lastOpened.clear();
   unreadCounts.clear();
   lastMessages.clear();
+  groupsData = [];
   activeChatId = null;
   activePeerUid = null;
+  activeChatKind = null;
   cachedIdToken = null;
 }
 
@@ -1699,6 +2002,93 @@ function subscribeLastMessage(chatId, peerUid){
   chatUnsubs.set(chatId, unsub);
 }
 
+// ---------- Groups ----------
+function subscribeGroups(){
+  const q = query(collection(db, 'groups'), where('members', 'array-contains', currentUser.uid));
+  unsubGroups = onSnapshot(q, async (snapshot) => {
+    groupsData = [];
+    snapshot.forEach(d => groupsData.push({ id: d.id, ...d.data() }));
+
+    // fetch profiles for every member of every group we're in
+    const allMemberUids = new Set();
+    groupsData.forEach(g => (g.members || []).forEach(uid => allMemberUids.add(uid)));
+    await Promise.all([...allMemberUids].map(uid => getProfile(uid)));
+
+    const currentGroupIds = new Set(groupsData.map(g => g.id));
+    for(const g of groupsData){
+      if(!lastOpened.has(g.id)) lastOpened.set(g.id, Date.now());
+      if(!groupChatUnsubs.has(g.id)) subscribeGroupLastMessage(g.id);
+    }
+    for(const [gid, unsub] of groupChatUnsubs.entries()){
+      if(!currentGroupIds.has(gid)){ unsub(); groupChatUnsubs.delete(gid); }
+    }
+
+    groupsInitial = false;
+    renderLists();
+    if(activeChatKind === 'group' && activeChatId && currentGroupIds.has(activeChatId)){
+      // Keep the open group's header (member count, name) fresh if it changed.
+      const fresh = groupsData.find(g => g.id === activeChatId);
+      if(fresh) renderGroupChatShell(activeChatId, fresh);
+    } else if(activeChatKind === 'group' && activeChatId && !currentGroupIds.has(activeChatId)){
+      // We were removed from (or left) the currently open group.
+      appEl.classList.remove('chat-open');
+      activeChatId = null;
+      activeChatKind = null;
+      mainPanel.innerHTML = `<div class="empty-state"><div class="glyph">✦</div><p>SELECT A LINE TO BEGIN</p></div>`;
+    }
+  });
+}
+
+function subscribeGroupLastMessage(groupId){
+  let isInitial = true;
+  const q = query(collection(db, 'groups', groupId, 'messages'), orderBy('t', 'desc'), limit(1));
+  const unsub = onSnapshot(q, (snapshot) => {
+    if(snapshot.empty){ isInitial = false; return; }
+    const m = snapshot.docs[0].data();
+    lastMessages.set(groupId, m);
+
+    const isNewIncoming = m.from !== currentUser.uid && m.t > (lastOpened.get(groupId) || 0);
+    if(!isInitial && isNewIncoming){
+      if(activeChatId === groupId){
+        lastOpened.set(groupId, Date.now());
+      } else {
+        unreadCounts.set(groupId, (unreadCounts.get(groupId) || 0) + 1);
+        const group = groupsData.find(g => g.id === groupId);
+        const sender = profileCache.get(m.from);
+        const senderName = sender ? sender.displayName : 'Someone';
+        notify((group ? group.name : 'Group'), senderName + ': ' + m.text);
+      }
+    }
+    isInitial = false;
+    renderLists();
+  });
+  groupChatUnsubs.set(groupId, unsub);
+}
+
+async function createGroup(name, memberUids){
+  const members = [currentUser.uid, ...memberUids];
+  const groupRef = doc(collection(db, 'groups'));
+  const groupData = { name: name, members: members, createdBy: currentUser.uid, createdAt: Date.now() };
+  await setDoc(groupRef, groupData);
+  return { id: groupRef.id, ...groupData };
+}
+
+async function renameGroup(groupId, newName){
+  await updateDoc(doc(db, 'groups', groupId), { name: newName });
+}
+
+async function addGroupMember(groupId, uid){
+  await updateDoc(doc(db, 'groups', groupId), { members: arrayUnion(uid) });
+}
+
+async function removeGroupMember(groupId, uid){
+  await updateDoc(doc(db, 'groups', groupId), { members: arrayRemove(uid) });
+}
+
+async function leaveGroup(groupId){
+  await removeGroupMember(groupId, currentUser.uid);
+}
+
 // ---------- Render sidebar lists ----------
 function renderLists(){
   const incoming = friendshipsData.filter(f => f.status === 'pending' && f.requestedBy !== currentUser.uid);
@@ -1721,6 +2111,33 @@ function renderLists(){
             <button class="req-btn req-accept" data-accept="${uid}">ACCEPT</button>
             <button class="req-btn req-decline" data-decline="${uid}">DECLINE</button>
           </div>
+        </div>
+      `;
+    });
+  }
+
+  if(groupsData.length){
+    html += `<div class="section-label">GROUPS</div>`;
+    groupsData.slice().sort((a, b) => {
+      const la = lastMessages.get(a.id); const lb = lastMessages.get(b.id);
+      return (lb ? lb.t : b.createdAt || 0) - (la ? la.t : a.createdAt || 0);
+    }).forEach(g => {
+      const last = lastMessages.get(g.id);
+      const unread = unreadCounts.get(g.id) || 0;
+      let preview = 'No messages yet';
+      if(last){
+        const sender = profileCache.get(last.from);
+        const senderName = last.from === currentUser.uid ? 'You' : (sender ? sender.displayName : 'Someone');
+        preview = senderName + ': ' + last.text;
+      }
+      html += `
+        <div class="contact ${activeChatKind === 'group' && activeChatId === g.id ? 'active' : ''}" data-open-group="${g.id}">
+          ${groupAvatarHtml(g)}
+          <div class="contact-info">
+            <div class="contact-name">${escapeHtml(g.name || 'Group')}</div>
+            <div class="contact-preview ${unread ? 'unread' : ''}">${escapeHtml(preview)}</div>
+          </div>
+          ${unread ? '<div class="unread-dot"></div>' : ''}
         </div>
       `;
     });
@@ -1770,6 +2187,13 @@ function renderLists(){
       openChat(uid, p);
     });
   });
+  listsEl.querySelectorAll('[data-open-group]').forEach(el => {
+    el.addEventListener('click', () => {
+      const gid = el.getAttribute('data-open-group');
+      const g = groupsData.find(x => x.id === gid);
+      if(g) openGroupChat(gid, g);
+    });
+  });
   listsEl.querySelectorAll('[data-accept]').forEach(el => {
     el.addEventListener('click', () => respondToRequest(el.getAttribute('data-accept'), true));
   });
@@ -1779,7 +2203,14 @@ function renderLists(){
 }
 
 // ---------- Chat ----------
+function messagesCollRef(kind, id){
+  return kind === 'group'
+    ? collection(db, 'groups', id, 'messages')
+    : collection(db, 'chats', id, 'messages');
+}
+
 function openChat(peerUid, peerProfile){
+  activeChatKind = 'dm';
   activePeerUid = peerUid;
   activeChatId = chatIdFor(currentUser.uid, peerUid);
   lastOpened.set(activeChatId, Date.now());
@@ -1787,7 +2218,22 @@ function openChat(peerUid, peerProfile){
   renderLists();
   renderChatShell(peerUid, peerProfile || profileCache.get(peerUid) || {});
   appEl.classList.add('chat-open');
+  beginMessageStream();
+}
 
+function openGroupChat(groupId, group){
+  activeChatKind = 'group';
+  activePeerUid = null;
+  activeChatId = groupId;
+  lastOpened.set(groupId, Date.now());
+  unreadCounts.set(groupId, 0);
+  renderLists();
+  renderGroupChatShell(groupId, group);
+  appEl.classList.add('chat-open');
+  beginMessageStream();
+}
+
+function beginMessageStream(){
   recentMessages = [];
   olderMessages = [];
   hasMoreOlder = true;
@@ -1796,7 +2242,7 @@ function openChat(peerUid, peerProfile){
   if(unsubMessages) unsubMessages();
   const oldWrap = document.getElementById('messagesEl');
   if(oldWrap) oldWrap.removeEventListener('scroll', onMessagesScroll);
-  const msgsRef = collection(db, 'chats', activeChatId, 'messages');
+  const msgsRef = messagesCollRef(activeChatKind, activeChatId);
   // Live window: most recent PAGE_SIZE messages, kept in sync in realtime.
   const q = query(msgsRef, orderBy('t', 'desc'), limit(PAGE_SIZE));
   let firstLoad = true;
@@ -1834,7 +2280,7 @@ async function loadOlderMessages(){
   renderMessages({ preserveScroll: true, showLoading: true });
 
   try{
-    const msgsRef = collection(db, 'chats', activeChatId, 'messages');
+    const msgsRef = messagesCollRef(activeChatKind, activeChatId);
     const q = query(msgsRef, orderBy('t', 'desc'), where('t', '<', oldestTs), limit(PAGE_SIZE));
     const snap = await getDocs(q);
     const batch = [];
@@ -1875,8 +2321,13 @@ function renderChatShell(peerUid, peer){
   document.getElementById('chatHeadInfo').addEventListener('click', () => openProfileModal(peerUid, peer));
   updateChatHeaderStatus(profileCache.get(peerUid) || peer);
 
+  wireComposer();
+}
+
+function wireComposer(){
   const input = document.getElementById('composerInput');
   const sendBtn = document.getElementById('sendBtn');
+  if(!input || !sendBtn) return;
 
   input.addEventListener('input', () => {
     sendBtn.disabled = input.value.trim().length === 0;
@@ -1898,7 +2349,7 @@ function renderChatShell(peerUid, peer){
     input.style.height = 'auto';
     sendBtn.disabled = true;
     try{
-      await addDoc(collection(db, 'chats', activeChatId, 'messages'), {
+      await addDoc(messagesCollRef(activeChatKind, activeChatId), {
         from: currentUser.uid,
         text: text,
         t: Date.now()
@@ -1907,6 +2358,45 @@ function renderChatShell(peerUid, peer){
       alert('Message failed to send: ' + err.message);
     }
   }
+}
+
+const GROUP_AVATAR_SVG = `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="15" cy="15" r="7" fill="none" stroke="#40BFFF" stroke-width="2.4"/><circle cx="27" cy="20" r="7" fill="none" stroke="#40BFFF" stroke-width="2.4"/><path d="M6 34 C6 26 11 22 15 22 C19 22 22 25 22 25" fill="none" stroke="#40BFFF" stroke-width="2.4" stroke-linecap="round"/><path d="M18 34 C18 27 22 24 27 24 C32 24 36 28 36 34" fill="none" stroke="#40BFFF" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+
+function groupAvatarHtml(group, extraClass){
+  extraClass = extraClass || '';
+  if(group && group.photoURL){
+    const safeUrl = group.photoURL.replace(/"/g, '%22');
+    return `<div class="avatar ${extraClass}" style="background-image:url(&quot;${safeUrl}&quot;)"></div>`;
+  }
+  return `<div class="avatar avatar-default ${extraClass}">${GROUP_AVATAR_SVG}</div>`;
+}
+
+function renderGroupChatShell(groupId, group){
+  const memberCount = (group.members || []).length;
+  mainPanel.innerHTML = `
+    <div class="chat-head">
+      <button class="back-btn" id="backBtn" aria-label="Back to contacts">←</button>
+      <div class="avatar-wrap" id="chatHeadAvatarWrap">${groupAvatarHtml(group)}</div>
+      <div class="chat-head-info" id="chatHeadInfo">
+        <div class="name">${escapeHtml(group.name || 'Group')}</div>
+        <div class="status" id="chatHeadStatus">${memberCount} member${memberCount === 1 ? '' : 's'}</div>
+      </div>
+      <button class="remove-friend-btn" id="groupInfoBtn">GROUP INFO</button>
+    </div>
+    <div class="messages" id="messagesEl"></div>
+    <div class="composer">
+      <div class="composer-bar">
+        <textarea id="composerInput" placeholder="Message #${escapeHtml(group.name || 'group')}" rows="1"></textarea>
+        <button class="send-btn" id="sendBtn" disabled>SEND</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('backBtn').addEventListener('click', () => appEl.classList.remove('chat-open'));
+  document.getElementById('groupInfoBtn').addEventListener('click', () => openGroupInfoModal(groupId));
+  document.getElementById('chatHeadAvatarWrap').addEventListener('click', () => openGroupInfoModal(groupId));
+  document.getElementById('chatHeadInfo').addEventListener('click', () => openGroupInfoModal(groupId));
+
+  wireComposer();
 }
 
 function renderMessages(opts){
@@ -1934,8 +2424,6 @@ function renderMessages(opts){
     wrap.appendChild(marker);
   }
 
-  const peer = profileCache.get(activePeerUid) || {};
-
   let lastDay = null;
   let lastSender = null;
   let lastTs = 0;
@@ -1952,6 +2440,7 @@ function renderMessages(opts){
     }
 
     const mine = m.from === currentUser.uid;
+    const senderProfile = mine ? myProfile : (profileCache.get(m.from) || { displayName: 'Unknown', username: '' });
     const sameSenderAsBefore = m.from === lastSender;
     const withinGroupWindow = (m.t - lastTs) < GROUP_GAP_MS;
     const isContinuation = sameSenderAsBefore && withinGroupWindow;
@@ -1965,7 +2454,6 @@ function renderMessages(opts){
       `;
       wrap.appendChild(row);
     } else {
-      const senderProfile = mine ? myProfile : peer;
       const row = document.createElement('div');
       row.className = 'msg-group';
       row.innerHTML = `
@@ -1982,11 +2470,11 @@ function renderMessages(opts){
       const avatarEl = row.querySelector('.avatar');
       if(avatarEl){
         avatarEl.style.cursor = 'pointer';
-        avatarEl.addEventListener('click', () => openProfileModal(mine ? currentUser.uid : activePeerUid, senderProfile));
+        avatarEl.addEventListener('click', () => openProfileModal(m.from, senderProfile));
       }
       const authorEl = row.querySelector('.msg-author');
       if(authorEl){
-        authorEl.addEventListener('click', () => openProfileModal(mine ? currentUser.uid : activePeerUid, senderProfile));
+        authorEl.addEventListener('click', () => openProfileModal(m.from, senderProfile));
       }
     }
 
