@@ -933,6 +933,53 @@
   .forward-target-row:last-child{ border-bottom:none; }
   .forward-target-row:hover{ background: var(--ink-3); }
 
+  /* ---------- Message markdown ---------- */
+  .msg-text a.msg-link{ color: var(--brass); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+  .msg-text a.msg-link:hover{ color: var(--brass-dim); }
+  .msg-text b{ font-weight:700; }
+  .msg-text i{ font-style: italic; }
+  .msg-text u{ text-decoration: underline; }
+  .msg-text s{ text-decoration: line-through; }
+  .msg-inline-code{
+    background: var(--ink-3);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.85em;
+  }
+  .msg-codeblock{
+    background: var(--ink-3);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 4px 0;
+    overflow-x: auto;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.85em;
+    line-height: 1.4;
+    white-space: pre;
+  }
+  .msg-quote{
+    border-left: 3px solid var(--line);
+    padding-left: 10px;
+    margin: 2px 0;
+    color: var(--paper-2);
+  }
+  .msg-spoiler{
+    background: var(--ink-3);
+    color: transparent;
+    border-radius: 3px;
+    padding: 0 2px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .msg-spoiler.revealed{
+    color: inherit;
+    background: rgba(255,255,255,0.06);
+    cursor: text;
+    user-select: text;
+  }
+
   @media (min-width: 1440px){
     .app{ max-width: 1600px; grid-template-columns: 360px 1fr; }
     .msg-group{ padding-left: 60px; padding-right: 90px; }
@@ -1951,6 +1998,58 @@ function escapeHtml(s){
   div.textContent = s == null ? '' : s;
   return div.innerHTML;
 }
+
+function formatMessageText(raw){
+  let text = escapeHtml(raw == null ? '' : raw);
+
+  // Protect chunks of HTML we build (code, links) behind tokens so later
+  // markdown regexes can't reach inside and mangle them.
+  const vault = [];
+  function protect(html){
+    const token = '\u0000P' + vault.length + '\u0000';
+    vault.push(html);
+    return token;
+  }
+
+  // Fenced code blocks
+  text = text.replace(/```([\s\S]*?)```/g, (m, code) => protect(`<pre class="msg-codeblock"><code>${code.replace(/^\n/, '')}</code></pre>`));
+  // Inline code
+  text = text.replace(/`([^`\n]+)`/g, (m, code) => protect(`<code class="msg-inline-code">${code}</code>`));
+
+  // Auto-link URLs (before other markdown, so URL characters like _ don't get misread as italics)
+  text = text.replace(/((https?:\/\/|www\.)[^\s<]+)/gi, (m) => {
+    let trimmed = m;
+    let trailing = '';
+    // Don't swallow trailing punctuation that's probably part of the sentence, not the URL.
+    const trailMatch = trimmed.match(/[.,:;!?'")\]]+$/);
+    if(trailMatch){ trailing = trailMatch[0]; trimmed = trimmed.slice(0, -trailing.length); }
+    const href = trimmed.startsWith('www.') ? 'https://' + trimmed : trimmed;
+    return protect(`<a class="msg-link" href="${href}" target="_blank" rel="noopener noreferrer">${trimmed}</a>`) + trailing;
+  });
+
+  // Blockquotes: a line starting with "> "
+  text = text.split('\n').map(line => {
+    const m = line.match(/^&gt;\s?(.*)$/);
+    return m ? `<div class="msg-quote">${m[1]}</div>` : line;
+  }).join('\n');
+
+  // Bold+italic, bold, underline, italic, strikethrough
+  text = text.replace(/\*\*\*([^\*\n]+?)\*\*\*/g, '<b><i>$1</i></b>');
+  text = text.replace(/\*\*([^\*\n]+?)\*\*/g, '<b>$1</b>');
+  text = text.replace(/__([^_\n]+?)__/g, '<u>$1</u>');
+  text = text.replace(/\*([^\*\n]+?)\*/g, '<i>$1</i>');
+  text = text.replace(/(?<![a-zA-Z0-9])_([^_\n]+?)_(?![a-zA-Z0-9])/g, '<i>$1</i>');
+  text = text.replace(/~~([^~\n]+?)~~/g, '<s>$1</s>');
+
+  // Spoilers
+  text = text.replace(/\|\|([^\|\n]+?)\|\|/g, '<span class="msg-spoiler">$1</span>');
+
+  // Restore protected chunks
+  text = text.replace(/\u0000P(\d+)\u0000/g, (m, i) => vault[+i]);
+
+  return text;
+}
+
 function initialsFor(name){
   return (name || '?').slice(0, 2).toUpperCase();
 }
@@ -2784,7 +2883,7 @@ function messageBodyHtml(m){
       <span>${escapeHtml((m.replyTo.text || '').slice(0, 80))}</span>
     </div>`;
   }
-  html += `<div class="msg-text">${escapeHtml(m.text)}${m.edited ? '<span class="msg-edited-tag">(edited)</span>' : ''}</div>`;
+  html += `<div class="msg-text">${formatMessageText(m.text)}${m.edited ? '<span class="msg-edited-tag">(edited)</span>' : ''}</div>`;
   return html;
 }
 
@@ -2807,6 +2906,9 @@ function wireMessageRow(row, m, mine, senderProfile){
   }
   row.querySelectorAll('.msg-action-btn').forEach(btn => {
     btn.addEventListener('click', () => handleMessageAction(btn.getAttribute('data-action'), m, senderProfile));
+  });
+  row.querySelectorAll('.msg-spoiler').forEach(el => {
+    el.addEventListener('click', () => el.classList.toggle('revealed'), { once: false });
   });
 }
 
