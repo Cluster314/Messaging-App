@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WIRE — Messages</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231c2731'/%3E%3Cstop offset='100%25' stop-color='%23141c24'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='200' height='200' rx='42' fill='url(%23bg)'/%3E%3Cg fill='%2340BFFF' opacity='0.35'%3E%3Ccircle cx='24' cy='24' r='3'/%3E%3Ccircle cx='24' cy='176' r='3'/%3E%3Ccircle cx='176' cy='24' r='3'/%3E%3Ccircle cx='176' cy='176' r='3'/%3E%3C/g%3E%3Cpath d='M42 128 L74 128 L86 96 L100 152 L114 72 L128 128 L158 128' fill='none' stroke='%2340BFFF' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='150' cy='58' r='9' fill='%2340BFFF'/%3E%3Ccircle cx='150' cy='58' r='16' fill='none' stroke='%2340BFFF' stroke-width='2.5' opacity='0.5'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
   :root{
     --ink:#2b2d31;
@@ -979,6 +981,45 @@
     cursor: text;
     user-select: text;
   }
+
+  .msg-h1{ font-size: 1.5em; font-weight:700; line-height:1.3; margin: 6px 0 2px; }
+  .msg-h2{ font-size: 1.25em; font-weight:700; line-height:1.3; margin: 5px 0 2px; }
+  .msg-h3{ font-size: 1.05em; font-weight:700; line-height:1.3; margin: 4px 0 2px; }
+  .msg-subtext{ font-size: 0.8em; color: var(--paper-2); line-height:1.4; }
+  .msg-list-item{ display:block; padding-left: 1.3em; text-indent: -1.3em; }
+
+  .msg-codeblock{ position:relative; }
+  .msg-codeblock .msg-code-lang{
+    position:absolute;
+    top:6px; right:10px;
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing:0.5px;
+    color: var(--paper-2);
+    text-transform: uppercase;
+  }
+  .msg-codeblock code.hljs{ background: transparent !important; padding:0 !important; }
+
+  .composer-preview{
+    display:none;
+    padding: 8px 14px 2px;
+    font-size: 13.5px;
+    color: var(--paper-2);
+    border-bottom: 1px dashed var(--line);
+    margin-bottom: 6px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .composer-preview.visible{ display:block; }
+  .composer-preview-label{
+    font-family: var(--font-display);
+    font-size: 9.5px;
+    letter-spacing: 1px;
+    color: var(--paper-2);
+    opacity: 0.6;
+    margin-bottom: 4px;
+  }
+  .composer-preview .msg-text{ color: var(--paper); }
 
   @media (min-width: 1440px){
     .app{ max-width: 1600px; grid-template-columns: 360px 1fr; }
@@ -2000,7 +2041,27 @@ function escapeHtml(s){
 }
 
 function formatMessageText(raw){
-  let text = escapeHtml(raw == null ? '' : raw);
+  raw = raw == null ? '' : raw;
+
+  // Multiline blockquote: a line that's just ">>>" (optionally with text after)
+  // turns everything from there to the end of the message into one quote block.
+  const rawLines = raw.split('\n');
+  for(let i = 0; i < rawLines.length; i++){
+    if(/^>>>\s?/.test(rawLines[i])){
+      const before = rawLines.slice(0, i).join('\n');
+      const firstQuoteLine = rawLines[i].replace(/^>>>\s?/, '');
+      const quoteRaw = [firstQuoteLine, ...rawLines.slice(i + 1)].join('\n');
+      const beforeHtml = before.trim() ? formatMessageTextCore(before) : '';
+      const quoteHtml = `<div class="msg-quote msg-quote-multi">${formatMessageTextCore(quoteRaw)}</div>`;
+      return beforeHtml + quoteHtml;
+    }
+  }
+
+  return formatMessageTextCore(raw);
+}
+
+function formatMessageTextCore(raw){
+  let text = escapeHtml(raw);
 
   // Protect chunks of HTML we build (code, links) behind tokens so later
   // markdown regexes can't reach inside and mangle them.
@@ -2011,12 +2072,25 @@ function formatMessageText(raw){
     return token;
   }
 
-  // Fenced code blocks
-  text = text.replace(/```([\s\S]*?)```/g, (m, code) => protect(`<pre class="msg-codeblock"><code>${code.replace(/^\n/, '')}</code></pre>`));
+  // Fenced code blocks, optionally tagged with a language: ```js
+  text = text.replace(/```(\w+)?\n?([\s\S]*?)```/g, (m, lang, code) => {
+    code = code.replace(/\n$/, '');
+    const langClass = lang ? ` language-${lang}` : '';
+    const langLabel = lang ? `<span class="msg-code-lang">${lang}</span>` : '';
+    return protect(`<pre class="msg-codeblock">${langLabel}<code class="${langClass}">${code}</code></pre>`);
+  });
   // Inline code
   text = text.replace(/`([^`\n]+)`/g, (m, code) => protect(`<code class="msg-inline-code">${code}</code>`));
 
-  // Auto-link URLs (before other markdown, so URL characters like _ don't get misread as italics)
+  // Markdown links: [label](url) — before bare-URL autolinking, so the URL
+  // inside the parens doesn't get double-linked first. Accepts bare domains
+  // like [text](example.com) as well as full URLs.
+  text = text.replace(/\[([^\]\n]+)\]\(([^\s)]+)\)/gi, (m, label, url) => {
+    const href = /^https?:\/\//i.test(url) ? url : 'https://' + url;
+    return protect(`<a class="msg-link" href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+  });
+
+  // Auto-link bare URLs
   text = text.replace(/((https?:\/\/|www\.)[^\s<]+)/gi, (m) => {
     let trimmed = m;
     let trailing = '';
@@ -2027,10 +2101,17 @@ function formatMessageText(raw){
     return protect(`<a class="msg-link" href="${href}" target="_blank" rel="noopener noreferrer">${trimmed}</a>`) + trailing;
   });
 
-  // Blockquotes: a line starting with "> "
+  // Line-level formatting: subtext, headers, single-line quotes, lists
   text = text.split('\n').map(line => {
-    const m = line.match(/^&gt;\s?(.*)$/);
-    return m ? `<div class="msg-quote">${m[1]}</div>` : line;
+    let m;
+    if((m = line.match(/^-#\s?(.*)$/))) return `<div class="msg-subtext">${m[1]}</div>`;
+    if((m = line.match(/^###\s?(.*)$/))) return `<div class="msg-h3">${m[1]}</div>`;
+    if((m = line.match(/^##\s?(.*)$/))) return `<div class="msg-h2">${m[1]}</div>`;
+    if((m = line.match(/^#\s?(.*)$/))) return `<div class="msg-h1">${m[1]}</div>`;
+    if((m = line.match(/^&gt;\s?(.*)$/))) return `<div class="msg-quote">${m[1]}</div>`;
+    if((m = line.match(/^[-*]\s+(.*)$/))) return `<div class="msg-list-item">• ${m[1]}</div>`;
+    if((m = line.match(/^(\d+)\.\s+(.*)$/))) return `<div class="msg-list-item">${m[1]}. ${m[2]}</div>`;
+    return line;
   }).join('\n');
 
   // Bold+italic, bold, underline, italic, strikethrough
@@ -2048,6 +2129,13 @@ function formatMessageText(raw){
   text = text.replace(/\u0000P(\d+)\u0000/g, (m, i) => vault[+i]);
 
   return text;
+}
+
+function highlightCodeBlocks(container){
+  if(!window.hljs) return;
+  container.querySelectorAll('pre.msg-codeblock code').forEach(el => {
+    try{ hljs.highlightElement(el); } catch(e){}
+  });
 }
 
 function initialsFor(name){
@@ -2596,6 +2684,7 @@ function renderChatShell(peerUid, peer){
     </div>
     <div class="messages" id="messagesEl"></div>
     <div class="composer">
+      <div class="composer-preview" id="composerPreview"></div>
       <div id="composerBannerSlot"></div>
       <div class="composer-bar">
         <textarea id="composerInput" placeholder="Message @${escapeHtml(peer.username)}" rows="1"></textarea>
@@ -2614,6 +2703,19 @@ function renderChatShell(peerUid, peer){
 
 let composerMode = null; // null | {type:'reply', msg, senderName} | {type:'edit', msg}
 
+function updateComposerPreview(text){
+  const preview = document.getElementById('composerPreview');
+  if(!preview) return;
+  if(!text || !text.trim()){
+    preview.classList.remove('visible');
+    preview.innerHTML = '';
+    return;
+  }
+  preview.classList.add('visible');
+  preview.innerHTML = `<div class="composer-preview-label">PREVIEW</div><div class="msg-text">${formatMessageText(text)}</div>`;
+  highlightCodeBlocks(preview);
+}
+
 function setComposerMode(mode){
   composerMode = mode;
   renderComposerBanner();
@@ -2625,6 +2727,7 @@ function setComposerMode(mode){
       input.style.height = 'auto';
       input.style.height = Math.min(input.scrollHeight, 120) + 'px';
       if(sendBtn) sendBtn.disabled = input.value.trim().length === 0;
+      updateComposerPreview(input.value);
     }
     input.focus();
   }
@@ -2639,6 +2742,7 @@ function clearComposerMode(){
     const sendBtn = document.getElementById('sendBtn');
     if(input){ input.value = ''; input.style.height = 'auto'; }
     if(sendBtn) sendBtn.disabled = true;
+    updateComposerPreview('');
   }
 }
 
@@ -2677,6 +2781,7 @@ function wireComposer(){
     sendBtn.disabled = input.value.trim().length === 0;
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+    updateComposerPreview(input.value);
   });
   input.addEventListener('keydown', (e) => {
     if(e.key === 'Enter' && !e.shiftKey){
@@ -2699,6 +2804,7 @@ function wireComposer(){
       input.value = '';
       input.style.height = 'auto';
       sendBtn.disabled = true;
+      updateComposerPreview('');
       await editMessageText(msgId, text);
       return;
     }
@@ -2719,6 +2825,7 @@ function wireComposer(){
     input.value = '';
     input.style.height = 'auto';
     sendBtn.disabled = true;
+    updateComposerPreview('');
     try{
       await addDoc(messagesCollRef(activeChatKind, activeChatId), payload);
     } catch(err){
@@ -2752,6 +2859,7 @@ function renderGroupChatShell(groupId, group){
     </div>
     <div class="messages" id="messagesEl"></div>
     <div class="composer">
+      <div class="composer-preview" id="composerPreview"></div>
       <div id="composerBannerSlot"></div>
       <div class="composer-bar">
         <textarea id="composerInput" placeholder="Message #${escapeHtml(group.name || 'group')}" rows="1"></textarea>
@@ -2910,6 +3018,7 @@ function wireMessageRow(row, m, mine, senderProfile){
   row.querySelectorAll('.msg-spoiler').forEach(el => {
     el.addEventListener('click', () => el.classList.toggle('revealed'), { once: false });
   });
+  highlightCodeBlocks(row);
 }
 
 function jumpToMessage(msgId){
