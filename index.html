@@ -2094,6 +2094,14 @@ function escapeHtml(s){
   return div.innerHTML;
 }
 
+function findByUsername(username){
+  const lower = (username || '').toLowerCase();
+  for(const [uid, p] of profileCache.entries()){
+    if(p && p.username && p.username.toLowerCase() === lower) return { uid, ...p };
+  }
+  return null;
+}
+
 function formatMessageText(raw){
   raw = raw == null ? '' : raw;
 
@@ -2135,6 +2143,15 @@ function formatMessageTextCore(raw){
   });
   // Inline code
   text = text.replace(/`([^`\n]+)`/g, (m, code) => protect(`<code class="msg-inline-code">${code}</code>`));
+
+  // @mentions — only highlighted as a pill if the username resolves to someone
+  // we actually know about (avoids turning random "@word" text into a mention).
+  text = text.replace(/@([a-zA-Z0-9_]{3,20})\b/g, (m, uname) => {
+    const found = findByUsername(uname);
+    if(!found) return m;
+    const isSelf = currentUser && found.uid === currentUser.uid;
+    return protect(`<span class="msg-mention${isSelf ? ' self' : ''}" data-mention-uid="${found.uid}">@${escapeHtml(found.username)}</span>`);
+  });
 
   // Markdown links: [label](url) — before bare-URL autolinking, so the URL
   // inside the parens doesn't get double-linked first. Accepts bare domains
@@ -2427,6 +2444,14 @@ function subscribeFriendships(){
   });
 }
 
+const mentionedUnread = new Set(); // chatId/groupId with an unread @mention of me
+
+function messageMentionsMe(text){
+  if(!myProfile || !myProfile.username || !text) return false;
+  const re = new RegExp('@' + myProfile.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+  return re.test(text);
+}
+
 function subscribeLastMessage(chatId, peerUid){
   let isInitial = true;
   const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('t', 'desc'), limit(1));
@@ -2442,7 +2467,13 @@ function subscribeLastMessage(chatId, peerUid){
       } else {
         unreadCounts.set(chatId, (unreadCounts.get(chatId) || 0) + 1);
         const p = profileCache.get(peerUid);
-        notify(p ? p.displayName : 'New message', m.text);
+        const name = p ? p.displayName : 'New message';
+        if(messageMentionsMe(m.text)){
+          mentionedUnread.add(chatId);
+          notify(name + ' mentioned you', m.text);
+        } else {
+          notify(name, m.text);
+        }
       }
     }
     isInitial = false;
@@ -2505,7 +2536,12 @@ function subscribeGroupLastMessage(groupId){
         const group = groupsData.find(g => g.id === groupId);
         const sender = profileCache.get(m.from);
         const senderName = sender ? sender.displayName : 'Someone';
-        notify((group ? group.name : 'Group'), senderName + ': ' + m.text);
+        if(messageMentionsMe(m.text)){
+          mentionedUnread.add(groupId);
+          notify(senderName + ' mentioned you in ' + (group ? group.name : 'a group'), m.text);
+        } else {
+          notify((group ? group.name : 'Group'), senderName + ': ' + m.text);
+        }
       }
     }
     isInitial = false;
@@ -2586,7 +2622,7 @@ function renderLists(){
             <div class="contact-name">${escapeHtml(g.name || 'Group')}</div>
             <div class="contact-preview ${unread ? 'unread' : ''}">${escapeHtml(preview)}</div>
           </div>
-          ${unread ? '<div class="unread-dot"></div>' : ''}
+          ${unread ? `<div class="unread-dot ${mentionedUnread.has(g.id) ? 'mentioned' : ''}"></div>` : ''}
         </div>
       `;
     });
@@ -2613,7 +2649,7 @@ function renderLists(){
             <div class="contact-name">${escapeHtml(p.displayName)} <span class="uname">@${escapeHtml(p.username)}</span></div>
             <div class="contact-preview ${unread ? 'unread' : ''}">${escapeHtml(preview)}</div>
           </div>
-          ${unread ? '<div class="unread-dot"></div>' : ''}
+          ${unread ? `<div class="unread-dot ${mentionedUnread.has(cid) ? 'mentioned' : ''}"></div>` : ''}
         </div>
       `;
     });
@@ -2664,6 +2700,7 @@ function openChat(peerUid, peerProfile){
   activeChatId = chatIdFor(currentUser.uid, peerUid);
   lastOpened.set(activeChatId, Date.now());
   unreadCounts.set(activeChatId, 0);
+  mentionedUnread.delete(activeChatId);
   renderLists();
   renderChatShell(peerUid, peerProfile || profileCache.get(peerUid) || {});
   appEl.classList.add('chat-open');
@@ -2676,6 +2713,7 @@ function openGroupChat(groupId, group){
   activeChatId = groupId;
   lastOpened.set(groupId, Date.now());
   unreadCounts.set(groupId, 0);
+  mentionedUnread.delete(groupId);
   renderLists();
   renderGroupChatShell(groupId, group);
   appEl.classList.add('chat-open');
@@ -2706,6 +2744,7 @@ function beginMessageStream(){
     renderMessages({ preserveScroll: false });
     lastOpened.set(activeChatId, Date.now());
     unreadCounts.set(activeChatId, 0);
+    mentionedUnread.delete(activeChatId);
   });
 
   const wrap = document.getElementById('messagesEl');
@@ -2845,6 +2884,108 @@ function renderComposerBanner(){
   if(cancelBtn) cancelBtn.addEventListener('click', clearComposerMode);
 }
 
+// ---------- @mention autocomplete ----------
+let mentionDropdownOpen = false;
+let mentionCandidatesFiltered = [];
+let mentionHighlightIndex = 0;
+let mentionQueryStart = -1;
+
+function getMentionCandidates(){
+  if(activeChatKind === 'group'){
+    const group = groupsData.find(g => g.id === activeChatId);
+    if(!group) return [];
+    return (group.members || [])
+      .filter(uid => uid !== currentUser.uid)
+      .map(uid => { const p = profileCache.get(uid); return p ? { uid, ...p } : null; })
+      .filter(Boolean);
+  }
+  if(activeChatKind === 'dm' && activePeerUid){
+    const p = profileCache.get(activePeerUid);
+    return p ? [{ uid: activePeerUid, ...p }] : [];
+  }
+  return [];
+}
+
+function updateMentionDropdown(input){
+  const cursor = input.selectionStart;
+  const value = input.value;
+  const uptoCursor = value.slice(0, cursor);
+  const atIndex = uptoCursor.lastIndexOf('@');
+
+  if(atIndex === -1){ closeMentionDropdown(); return; }
+  const between = uptoCursor.slice(atIndex + 1);
+  if(/\s/.test(between) || between.length > 20){ closeMentionDropdown(); return; }
+  // Only trigger at the start of the message or right after whitespace, so
+  // emails and the like don't accidentally open the picker.
+  if(atIndex > 0 && !/[\s\n]/.test(value[atIndex - 1])){ closeMentionDropdown(); return; }
+
+  const query = between.toLowerCase();
+  const candidates = getMentionCandidates().filter(c => (c.username || '').toLowerCase().startsWith(query)).slice(0, 6);
+  if(candidates.length === 0){ closeMentionDropdown(); return; }
+
+  mentionQueryStart = atIndex;
+  mentionCandidatesFiltered = candidates;
+  mentionHighlightIndex = 0;
+  mentionDropdownOpen = true;
+  renderMentionDropdown(input);
+}
+
+function renderMentionDropdown(input){
+  const dd = document.getElementById('mentionDropdown');
+  if(!dd) return;
+  if(!mentionDropdownOpen || mentionCandidatesFiltered.length === 0){
+    dd.classList.remove('visible');
+    dd.innerHTML = '';
+    return;
+  }
+  dd.innerHTML = mentionCandidatesFiltered.map((c, i) => `
+    <div class="mention-row ${i === mentionHighlightIndex ? 'highlighted' : ''}" data-mention-index="${i}">
+      ${avatarHtml(c)}
+      <div>
+        <div class="picker-name">${escapeHtml(c.displayName || '')}</div>
+        <div class="picker-uname">@${escapeHtml(c.username || '')}</div>
+      </div>
+    </div>
+  `).join('');
+  dd.classList.add('visible');
+  dd.querySelectorAll('[data-mention-index]').forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // keep focus in the textarea
+      mentionHighlightIndex = +el.getAttribute('data-mention-index');
+      confirmMentionSelection(input);
+    });
+  });
+}
+
+function moveMentionHighlight(delta){
+  if(mentionCandidatesFiltered.length === 0) return;
+  mentionHighlightIndex = (mentionHighlightIndex + delta + mentionCandidatesFiltered.length) % mentionCandidatesFiltered.length;
+  renderMentionDropdown(document.getElementById('composerInput'));
+}
+
+function confirmMentionSelection(input){
+  if(!mentionDropdownOpen || mentionCandidatesFiltered.length === 0) return;
+  const chosen = mentionCandidatesFiltered[mentionHighlightIndex];
+  const cursor = input.selectionStart;
+  const before = input.value.slice(0, mentionQueryStart);
+  const after = input.value.slice(cursor);
+  const insertion = '@' + chosen.username + ' ';
+  input.value = before + insertion + after;
+  const newCursor = before.length + insertion.length;
+  input.selectionStart = input.selectionEnd = newCursor;
+  closeMentionDropdown();
+  input.dispatchEvent(new Event('input'));
+  input.focus();
+}
+
+function closeMentionDropdown(){
+  mentionDropdownOpen = false;
+  mentionCandidatesFiltered = [];
+  mentionQueryStart = -1;
+  const dd = document.getElementById('mentionDropdown');
+  if(dd){ dd.classList.remove('visible'); dd.innerHTML = ''; }
+}
+
 function wireComposer(){
   const input = document.getElementById('composerInput');
   const sendBtn = document.getElementById('sendBtn');
@@ -2852,14 +2993,23 @@ function wireComposer(){
 
   composerMode = null;
   renderComposerBanner();
+  closeMentionDropdown();
 
   input.addEventListener('input', () => {
     sendBtn.disabled = input.value.trim().length === 0;
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 120) + 'px';
     updateComposerPreview(input.value);
+    updateMentionDropdown(input);
   });
+  input.addEventListener('click', () => updateMentionDropdown(input));
   input.addEventListener('keydown', (e) => {
+    if(mentionDropdownOpen){
+      if(e.key === 'ArrowDown'){ e.preventDefault(); moveMentionHighlight(1); return; }
+      if(e.key === 'ArrowUp'){ e.preventDefault(); moveMentionHighlight(-1); return; }
+      if(e.key === 'Enter' || e.key === 'Tab'){ e.preventDefault(); confirmMentionSelection(input); return; }
+      if(e.key === 'Escape'){ e.preventDefault(); closeMentionDropdown(); return; }
+    }
     if(e.key === 'Enter' && !e.shiftKey){
       e.preventDefault();
       trySend();
@@ -2881,6 +3031,7 @@ function wireComposer(){
       input.style.height = 'auto';
       sendBtn.disabled = true;
       updateComposerPreview('');
+      closeMentionDropdown();
       await editMessageText(msgId, text);
       return;
     }
@@ -2902,6 +3053,7 @@ function wireComposer(){
     input.style.height = 'auto';
     sendBtn.disabled = true;
     updateComposerPreview('');
+    closeMentionDropdown();
     try{
       await addDoc(messagesCollRef(activeChatKind, activeChatId), payload);
     } catch(err){
@@ -3094,6 +3246,13 @@ function wireMessageRow(row, m, mine, senderProfile){
   });
   row.querySelectorAll('.msg-spoiler').forEach(el => {
     el.addEventListener('click', () => el.classList.toggle('revealed'), { once: false });
+  });
+  row.querySelectorAll('.msg-mention[data-mention-uid]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const uid = el.getAttribute('data-mention-uid');
+      openProfileModal(uid, profileCache.get(uid));
+    });
   });
   highlightCodeBlocks(row);
   wireCodeCopyButtons(row);
