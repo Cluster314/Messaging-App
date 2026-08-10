@@ -991,13 +991,31 @@
   .msg-codeblock{ position:relative; }
   .msg-codeblock .msg-code-lang{
     position:absolute;
-    top:6px; right:10px;
+    top:6px; right:56px;
     font-family: var(--font-display);
     font-size: 10px;
     letter-spacing:0.5px;
     color: var(--paper-2);
     text-transform: uppercase;
   }
+  .msg-code-copy{
+    position:absolute;
+    top:4px; right:8px;
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    color: var(--paper-2);
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight:600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor:pointer;
+    opacity:0;
+    transition: opacity .12s ease;
+  }
+  .msg-codeblock:hover .msg-code-copy{ opacity:1; }
+  .msg-code-copy:hover{ background: var(--brass); color: var(--ink-3); border-color: var(--brass); }
+  .msg-code-copy.copied{ background: var(--green); color:#fff; border-color: var(--green); opacity:1; }
   .msg-codeblock code.hljs{ background: transparent !important; padding:0 !important; }
 
   .composer-preview{
@@ -2077,7 +2095,7 @@ function formatMessageTextCore(raw){
     code = code.replace(/\n$/, '');
     const langClass = lang ? ` language-${lang}` : '';
     const langLabel = lang ? `<span class="msg-code-lang">${lang}</span>` : '';
-    return protect(`<pre class="msg-codeblock">${langLabel}<code class="${langClass}">${code}</code></pre>`);
+    return protect(`<pre class="msg-codeblock"><button class="msg-code-copy" type="button">Copy</button>${langLabel}<code class="${langClass}">${code}</code></pre>`);
   });
   // Inline code
   text = text.replace(/`([^`\n]+)`/g, (m, code) => protect(`<code class="msg-inline-code">${code}</code>`));
@@ -2135,6 +2153,26 @@ function highlightCodeBlocks(container){
   if(!window.hljs) return;
   container.querySelectorAll('pre.msg-codeblock code').forEach(el => {
     try{ hljs.highlightElement(el); } catch(e){}
+  });
+}
+
+function wireCodeCopyButtons(container){
+  container.querySelectorAll('.msg-code-copy').forEach(btn => {
+    if(btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', () => {
+      const codeEl = btn.parentElement.querySelector('code');
+      const text = codeEl ? codeEl.textContent : '';
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(() => {
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+        }).catch(() => showToast('Copy failed', 'Could not copy the code block.'));
+      } else {
+        showToast('Copy unavailable', 'Clipboard access isn\u2019t available here.');
+      }
+    });
   });
 }
 
@@ -2714,6 +2752,7 @@ function updateComposerPreview(text){
   preview.classList.add('visible');
   preview.innerHTML = `<div class="composer-preview-label">PREVIEW</div><div class="msg-text">${formatMessageText(text)}</div>`;
   highlightCodeBlocks(preview);
+  wireCodeCopyButtons(preview);
 }
 
 function setComposerMode(mode){
@@ -3019,6 +3058,7 @@ function wireMessageRow(row, m, mine, senderProfile){
     el.addEventListener('click', () => el.classList.toggle('revealed'), { once: false });
   });
   highlightCodeBlocks(row);
+  wireCodeCopyButtons(row);
 }
 
 function jumpToMessage(msgId){
